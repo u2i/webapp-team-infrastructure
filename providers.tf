@@ -3,10 +3,10 @@
 # Kubernetes provider for non-production cluster
 provider "kubernetes" {
   alias = "nonprod"
-  
+
   host                   = "https://${data.terraform_remote_state.shared_gke.outputs.gke_clusters.non_production.endpoint}"
   cluster_ca_certificate = base64decode(data.google_container_cluster.nonprod.master_auth[0].cluster_ca_certificate)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "gke-gcloud-auth-plugin"
@@ -16,10 +16,10 @@ provider "kubernetes" {
 # Kubernetes provider for production cluster  
 provider "kubernetes" {
   alias = "prod"
-  
+
   host                   = "https://${data.terraform_remote_state.shared_gke.outputs.gke_clusters.production.endpoint}"
   cluster_ca_certificate = base64decode(data.google_container_cluster.prod.master_auth[0].cluster_ca_certificate)
-  
+
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "gke-gcloud-auth-plugin"
