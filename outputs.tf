@@ -74,6 +74,16 @@ output "github_secrets" {
   }
 }
 
+output "pam_configuration" {
+  description = "PAM entitlement configuration for infrastructure deployments"
+  value = {
+    entitlement_id         = google_privileged_access_manager_entitlement.tenant_infrastructure_deploy.entitlement_id
+    entitlement_name       = google_privileged_access_manager_entitlement.tenant_infrastructure_deploy.name
+    max_duration          = google_privileged_access_manager_entitlement.tenant_infrastructure_deploy.max_request_duration
+    eligible_service_account = google_service_account.terraform_webapp_team.email
+  }
+}
+
 output "next_steps" {
   description = "Next steps for deploying applications"
   value = [

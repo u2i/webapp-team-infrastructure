@@ -255,6 +255,30 @@ jobs:
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
     
+    - name: Request PAM Elevation
+      id: pam-grant
+      run: |
+        echo "🔑 Requesting PAM elevation for infrastructure changes..."
+        
+        # Request PAM grant for terraform operations
+        GRANT_ID=$(gcloud beta pam grants create \
+          --entitlement="projects/$PROJECT_ID/locations/global/entitlements/terraform-tenant-infrastructure-deploy" \
+          --requested-duration="1800s" \
+          --justification="Infrastructure deployment - GitHub Actions run ${{ github.run_id }} by ${{ github.actor }}" \
+          --format="value(name)")
+        
+        if [ -z "$GRANT_ID" ]; then
+          echo "❌ Failed to obtain PAM grant"
+          exit 1
+        fi
+        
+        echo "✅ PAM grant obtained: $GRANT_ID"
+        echo "grant_id=$GRANT_ID" >> $GITHUB_OUTPUT
+        
+        # Wait a few seconds for elevation to activate
+        echo "⏳ Waiting for privilege elevation to activate..."
+        sleep 10
+    
     - name: Create pre-apply audit log
       run: |
         gcloud logging write "webapp-team-infrastructure" \
@@ -268,6 +292,8 @@ jobs:
             \"destructive_changes\": \"${{ needs.detect-changes.outputs.destructive }}\",
             \"force_apply\": \"${{ github.event.inputs.force_apply }}\",
             \"reason\": \"${{ github.event.inputs.reason || 'Automated apply from main branch' }}\",
+            \"pam_grant_id\": \"${{ steps.pam-grant.outputs.grant_id }}\",
+            \"privilege_model\": \"zero-standing-privilege\",
             \"compliance_framework\": \"iso27001-soc2-gdpr\",
             \"run_id\": \"${{ github.run_id }}\"
           }" \
@@ -372,6 +398,31 @@ jobs:
       env:
         SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
     
+    - name: Revoke PAM Grant
+      if: always() && steps.pam-grant.outputs.grant_id
+      run: |
+        echo "🔒 Revoking PAM privileges..."
+        
+        GRANT_ID="${{ steps.pam-grant.outputs.grant_id }}"
+        if [ ! -z "$GRANT_ID" ]; then
+          gcloud beta pam grants revoke $GRANT_ID || echo "Grant already expired or revoked"
+          echo "✅ PAM privileges revoked"
+        fi
+        
+        # Final audit log
+        gcloud logging write "webapp-team-infrastructure" \
+          "{
+            \"message\": \"PAM PRIVILEGES REVOKED\",
+            \"event_type\": \"pam_grant_revoked\",
+            \"grant_id\": \"$GRANT_ID\",
+            \"repository\": \"${{ github.repository }}\",
+            \"actor\": \"${{ github.actor }}\",
+            \"compliance_framework\": \"iso27001-soc2-gdpr\",
+            \"run_id\": \"${{ github.run_id }}\"
+          }" \
+          --severity=INFO \
+          --project=$PROJECT_ID
+    
     - name: Generate apply summary
       run: |
         echo "## 🏗️ Infrastructure Apply Summary" >> $GITHUB_STEP_SUMMARY
@@ -380,7 +431,9 @@ jobs:
         echo "**Project**: $PROJECT_ID" >> $GITHUB_STEP_SUMMARY
         echo "**Approved by**: ${{ needs.slack-approval.outputs.approval_user || 'Emergency override' }}" >> $GITHUB_STEP_SUMMARY
         echo "**Destructive changes**: ${{ needs.detect-changes.outputs.destructive }}" >> $GITHUB_STEP_SUMMARY
+        echo "**PAM Grant**: ${{ steps.pam-grant.outputs.grant_id }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Security Model**: ✅ Zero Standing Privilege with PAM elevation" >> $GITHUB_STEP_SUMMARY
         echo "**Compliance Status**: ✅ ISO 27001, SOC 2, GDPR compliant" >> $GITHUB_STEP_SUMMARY
         echo "**Audit Trail**: ✅ Complete audit log maintained" >> $GITHUB_STEP_SUMMARY
-        echo "**Change Control**: ✅ Slack approval workflow completed" >> $GITHUB_STEP_SUMMARY
+        echo "**Change Control**: ✅ Slack approval + PAM elevation workflow" >> $GITHUB_STEP_SUMMARY

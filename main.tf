@@ -66,7 +66,9 @@ resource "google_project_service" "tenant_apis" {
     "artifactregistry.googleapis.com",
     "storage.googleapis.com",
     "logging.googleapis.com",
-    "monitoring.googleapis.com"
+    "monitoring.googleapis.com",
+    "privilegedaccessmanager.googleapis.com",
+    "iam.googleapis.com"
   ])
 
   project = google_project.tenant_app.project_id
@@ -309,12 +311,10 @@ resource "google_service_account_iam_member" "app_workload_identity" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/u2i/webapp-team-app"
 }
 
-# Terraform SA permissions - read-only baseline
+# Terraform SA permissions - read-only baseline only (Zero Standing Privilege)
 resource "google_project_iam_member" "terraform_baseline_permissions" {
   for_each = toset([
     "roles/viewer",
-    "roles/clouddeploy.developer", 
-    "roles/container.clusterViewer",
     "roles/iam.securityReviewer",
     "roles/logging.viewer",
     "roles/monitoring.viewer"
@@ -323,6 +323,70 @@ resource "google_project_iam_member" "terraform_baseline_permissions" {
   project = google_project.tenant_app.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.terraform_webapp_team.email}"
+}
+
+# PAM Entitlement for tenant infrastructure deployments
+resource "google_privileged_access_manager_entitlement" "tenant_infrastructure_deploy" {
+  project        = google_project.tenant_app.project_id
+  entitlement_id = "terraform-tenant-infrastructure-deploy"
+  location       = "global"
+  
+  max_request_duration = "1800s"  # 30 minutes for tenant infrastructure changes
+  
+  eligible_users = [
+    "serviceAccount:${google_service_account.terraform_webapp_team.email}"
+  ]
+  
+  privileged_access {
+    gcp_iam_access {
+      resource      = "//cloudresourcemanager.googleapis.com/projects/${google_project.tenant_app.project_id}"
+      resource_type = "cloudresourcemanager.googleapis.com/Project"
+      
+      # Platform engineer role bundle for infrastructure changes
+      role_bindings {
+        role = "roles/clouddeploy.developer"
+      }
+      role_bindings {
+        role = "roles/container.clusterViewer"
+      }
+      role_bindings {
+        role = "roles/compute.instanceAdmin"
+      }
+      role_bindings {
+        role = "roles/iam.serviceAccountUser"
+      }
+      role_bindings {
+        role = "roles/storage.admin"
+      }
+      role_bindings {
+        role = "roles/artifactregistry.admin"
+      }
+    }
+  }
+  
+  approval_workflow {
+    manual_approvals {
+      require_approver_justification = true
+      steps {
+        approvers {
+          # Infrastructure team approvals via Slack integration
+          principals = [
+            "group:platform-leads@u2i.com"
+          ]
+        }
+        approvals_needed = 1
+      }
+    }
+  }
+  
+  additional_notification_targets {
+    admin_email_recipients = [
+      "platform-team@u2i.com",
+      "security-team@u2i.com"
+    ]
+  }
+
+  depends_on = [google_project_service.tenant_apis]
 }
 
 # Application SA permissions for CI/CD
