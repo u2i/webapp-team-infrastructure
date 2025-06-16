@@ -54,13 +54,35 @@ output "namespaces" {
   }
 }
 
+output "workload_identity" {
+  description = "Workload Identity configuration for GitHub Actions"
+  value = {
+    provider                    = google_iam_workload_identity_pool_provider.github.name
+    terraform_service_account   = google_service_account.terraform_webapp_team.email
+    app_service_account        = google_service_account.github_actions_webapp_team.email
+    pool_id                    = google_iam_workload_identity_pool.github_actions.workload_identity_pool_id
+  }
+}
+
+output "github_secrets" {
+  description = "GitHub secrets that need to be configured"
+  value = {
+    WORKLOAD_IDENTITY_PROVIDER = google_iam_workload_identity_pool_provider.github.name
+    TERRAFORM_SERVICE_ACCOUNT  = google_service_account.terraform_webapp_team.email
+    APP_SERVICE_ACCOUNT       = google_service_account.github_actions_webapp_team.email
+    PROJECT_ID                = google_project.tenant_app.project_id
+  }
+}
+
 output "next_steps" {
   description = "Next steps for deploying applications"
   value = [
-    "1. Create Kubernetes manifests with skaffold.yaml and clouddeploy.yaml",
-    "2. Build and push container image to Artifact Registry",
-    "3. Create Cloud Deploy release",
-    "4. Monitor deployment through Cloud Deploy console",
-    "5. Approve production deployment when ready"
+    "1. Configure GitHub repository secrets with workload identity values",
+    "2. Update GitHub Actions workflows to use tenant-specific service accounts", 
+    "3. Create Kubernetes manifests with skaffold.yaml and clouddeploy.yaml",
+    "4. Build and push container image to Artifact Registry",
+    "5. Create Cloud Deploy release",
+    "6. Monitor deployment through Cloud Deploy console",
+    "7. Approve production deployment when ready"
   ]
 }

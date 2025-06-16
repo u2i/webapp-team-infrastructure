@@ -246,6 +246,126 @@ resource "google_project_iam_member" "cloud_deploy_tenant_permissions" {
   member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
 }
 
+# Workload Identity Pool for this tenant project
+resource "google_iam_workload_identity_pool" "github_actions" {
+  project                   = google_project.tenant_app.project_id
+  workload_identity_pool_id = "github-actions"
+  display_name              = "GitHub Actions for webapp-team"
+  description               = "Workload Identity Pool for webapp-team GitHub Actions workflows"
+
+  depends_on = [google_project_service.tenant_apis]
+}
+
+# Workload Identity Provider for GitHub
+resource "google_iam_workload_identity_pool_provider" "github" {
+  project                            = google_project.tenant_app.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github_actions.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github"
+  display_name                       = "GitHub Provider"
+  description                        = "GitHub OIDC provider for webapp-team repositories"
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  attribute_mapping = {
+    "google.subject"             = "assertion.sub"
+    "attribute.actor"            = "assertion.actor"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.repository_owner" = "assertion.repository_owner"
+    "attribute.workflow"         = "assertion.workflow"
+  }
+
+  attribute_condition = "assertion.repository_owner == 'u2i'"
+}
+
+# Service Account for Terraform operations
+resource "google_service_account" "terraform_webapp_team" {
+  project      = google_project.tenant_app.project_id
+  account_id   = "terraform-webapp-team"
+  display_name = "Terraform SA for webapp-team (Zero Standing Privilege)"
+  description  = "Infrastructure deployments with read-only + PAM elevation"
+}
+
+# Service Account for Application deployments  
+resource "google_service_account" "github_actions_webapp_team" {
+  project      = google_project.tenant_app.project_id
+  account_id   = "github-actions-webapp-team"
+  display_name = "GitHub Actions SA for webapp-team applications"
+  description  = "Application CI/CD workflows"
+}
+
+# Grant Workload Identity User to terraform SA for infrastructure repo
+resource "google_service_account_iam_member" "terraform_workload_identity" {
+  service_account_id = google_service_account.terraform_webapp_team.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/u2i/webapp-team-infrastructure"
+}
+
+# Grant Workload Identity User to app SA for application repo
+resource "google_service_account_iam_member" "app_workload_identity" {
+  service_account_id = google_service_account.github_actions_webapp_team.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_actions.name}/attribute.repository/u2i/webapp-team-app"
+}
+
+# Terraform SA permissions - read-only baseline
+resource "google_project_iam_member" "terraform_baseline_permissions" {
+  for_each = toset([
+    "roles/viewer",
+    "roles/clouddeploy.developer", 
+    "roles/container.clusterViewer",
+    "roles/iam.securityReviewer",
+    "roles/logging.viewer",
+    "roles/monitoring.viewer"
+  ])
+
+  project = google_project.tenant_app.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.terraform_webapp_team.email}"
+}
+
+# Application SA permissions for CI/CD
+resource "google_project_iam_member" "github_actions_permissions" {
+  for_each = toset([
+    "roles/clouddeploy.releaser",
+    "roles/cloudbuild.builds.editor", 
+    "roles/artifactregistry.writer",
+    "roles/storage.objectUser",
+    "roles/container.developer"
+  ])
+
+  project = google_project.tenant_app.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.github_actions_webapp_team.email}"
+}
+
+# Grant terraform SA access to shared GKE clusters (read-only)
+resource "google_project_iam_member" "terraform_nonprod_access" {
+  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
+  role    = "roles/container.clusterViewer"
+  member  = "serviceAccount:${google_service_account.terraform_webapp_team.email}"
+}
+
+resource "google_project_iam_member" "terraform_prod_access" {
+  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
+  role    = "roles/container.clusterViewer" 
+  member  = "serviceAccount:${google_service_account.terraform_webapp_team.email}"
+}
+
+# Grant app SA access to shared GKE clusters for deployments
+resource "google_project_iam_member" "app_nonprod_access" {
+  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
+  role    = "roles/container.developer"
+  member  = "serviceAccount:${google_service_account.github_actions_webapp_team.email}"
+}
+
+resource "google_project_iam_member" "app_prod_access" {
+  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
+  role    = "roles/container.developer"
+  member  = "serviceAccount:${google_service_account.github_actions_webapp_team.email}"
+}
+
 # Create tenant namespace in shared clusters
 resource "kubernetes_namespace" "webapp_nonprod" {
   provider = kubernetes.nonprod

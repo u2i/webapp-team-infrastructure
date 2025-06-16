@@ -39,10 +39,10 @@ jobs:
         terraform_version: ${{ env.TF_VERSION }}
     
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/github-actions/providers/github'
-        service_account: 'terraform-organization@u2i-bootstrap.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
