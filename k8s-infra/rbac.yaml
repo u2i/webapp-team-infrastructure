@@ -1,0 +1,83 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: webapp-team-role
+  namespace: webapp-team
+  labels:
+    tenant: webapp-team
+    managed-by: webapp-team
+    compliance: iso27001-soc2-gdpr
+rules:
+# Allow full access to most resources within the namespace
+- apiGroups: [""]
+  resources: 
+    - pods
+    - pods/log
+    - pods/exec
+    - services
+    - configmaps
+    - secrets
+    - persistentvolumeclaims
+    - events
+  verbs: ["*"]
+
+- apiGroups: ["apps"]
+  resources:
+    - deployments
+    - replicasets
+    - statefulsets
+    - daemonsets
+  verbs: ["*"]
+
+- apiGroups: ["networking.k8s.io"]
+  resources:
+    - ingresses
+    - networkpolicies
+  verbs: ["*"]
+
+- apiGroups: ["networking.gke.io"]
+  resources:
+    - managedcertificates
+  verbs: ["*"]
+
+- apiGroups: ["autoscaling"]
+  resources:
+    - horizontalpodautoscalers
+  verbs: ["*"]
+
+# Read-only access to quotas and limits (managed by platform team)
+- apiGroups: [""]
+  resources:
+    - resourcequotas
+    - limitranges
+  verbs: ["get", "list"]
+
+# Allow reading namespace (but not modifying)
+- apiGroups: [""]
+  resources:
+    - namespaces
+  verbs: ["get"]
+  resourceNames: ["webapp-team"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: webapp-team-binding
+  namespace: webapp-team
+  labels:
+    tenant: webapp-team
+    managed-by: webapp-team
+    compliance: iso27001-soc2-gdpr
+subjects:
+# Team Google Groups (add your actual groups)
+- kind: User
+  name: webapp-team@u2i.com
+  apiGroup: rbac.authorization.k8s.io
+
+roleRef:
+  kind: Role
+  name: webapp-team-role
+  apiGroup: rbac.authorization.k8s.io
+
+# ServiceAccount removed - Cloud Deploy uses cluster-level RBAC managed by platform team

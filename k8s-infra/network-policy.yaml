@@ -1,0 +1,114 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: webapp-team-isolation
+  namespace: webapp-team
+  labels:
+    tenant: webapp-team
+    managed-by: webapp-team
+    compliance: iso27001-soc2-gdpr
+    security-policy: tenant-isolation
+spec:
+  podSelector: {}  # Apply to all pods in namespace
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow ingress from same namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          tenant: webapp-team
+  
+  # Allow ingress from GKE system namespaces (for load balancers, etc.)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: gke-system
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+  
+  # Allow ingress from kube-system (for DNS, etc.)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+  
+  egress:
+  # Allow egress to same namespace
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          tenant: webapp-team
+  
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow egress to GKE metadata server
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 988
+  
+  # Allow HTTPS egress to external services
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow HTTP egress (consider restricting in production)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: webapp-team-deny-cross-tenant
+  namespace: webapp-team
+  labels:
+    tenant: webapp-team
+    managed-by: webapp-team
+    compliance: iso27001-soc2-gdpr
+    security-policy: cross-tenant-prevention
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  # Explicitly deny traffic to/from other tenant namespaces
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchExpressions:
+        - key: tenant
+          operator: DoesNotExist
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          tenant: webapp-team
+  
+  egress:
+  - to:
+    - namespaceSelector:
+        matchExpressions:
+        - key: tenant
+          operator: DoesNotExist
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          tenant: webapp-team

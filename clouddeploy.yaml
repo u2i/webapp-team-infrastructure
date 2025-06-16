@@ -1,0 +1,64 @@
+apiVersion: deploy.cloud.google.com/v1
+kind: DeliveryPipeline
+metadata:
+  name: webapp-delivery-pipeline
+  labels:
+    app: webapp
+    tenant: webapp-team
+    compliance: iso27001-soc2-gdpr
+spec:
+  description: Delivery pipeline for webapp from nonprod to production
+  serialPipeline:
+    stages:
+    - targetId: nonprod-gke
+      profiles:
+      - nonprod
+      strategy:
+        standard:
+          verify: false
+    - targetId: prod-gke
+      profiles:
+      - prod
+      strategy:
+        standard:
+          verify: true
+      requireApproval: true
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: nonprod-gke
+  labels:
+    app: webapp
+    tenant: webapp-team
+    environment: nonprod
+    compliance: iso27001-soc2-gdpr
+spec:
+  description: Non-production GKE cluster in shared infrastructure
+  gke:
+    cluster: projects/u2i-gke-nonprod/locations/europe-west1/clusters/nonprod-autopilot
+  executionConfigs:
+  - usages:
+    - RENDER
+    - DEPLOY
+    serviceAccount: cloud-deploy-sa@u2i-tenant-webapp.iam.gserviceaccount.com
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: prod-gke
+  labels:
+    app: webapp
+    tenant: webapp-team
+    environment: prod
+    compliance: iso27001-soc2-gdpr
+spec:
+  description: Production GKE cluster in shared infrastructure  
+  gke:
+    cluster: projects/u2i-gke-prod/locations/europe-west1/clusters/prod-autopilot
+  requireApproval: true
+  executionConfigs:
+  - usages:
+    - RENDER
+    - DEPLOY
+    serviceAccount: cloud-deploy-sa@u2i-tenant-webapp.iam.gserviceaccount.com

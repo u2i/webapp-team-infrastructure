@@ -1,0 +1,183 @@
+name: Terraform Plan & Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '**.tf'
+      - '**.tfvars'
+      - '.github/workflows/terraform-*.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**.tf'
+      - '**.tfvars'
+      - '.github/workflows/terraform-*.yml'
+
+env:
+  TF_VERSION: '1.6.6'
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan & Compliance Check
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+    
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/github-actions/providers/github'
+        service_account: 'terraform-organization@u2i-bootstrap.iam.gserviceaccount.com'
+    
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+    
+    - name: Terraform Format Check
+      run: |
+        echo "🔍 Checking Terraform formatting..."
+        if ! terraform fmt -check -recursive .; then
+          echo "❌ Terraform files are not properly formatted"
+          echo "Run 'terraform fmt -recursive .' to fix formatting"
+          exit 1
+        fi
+        echo "✅ Terraform formatting is correct"
+    
+    - name: Terraform Init
+      run: |
+        echo "🚀 Initializing Terraform..."
+        terraform init
+    
+    - name: Terraform Validate
+      run: |
+        echo "🔍 Validating Terraform configuration..."
+        terraform validate
+        echo "✅ Terraform configuration is valid"
+    
+    - name: Security and Compliance Checks
+      run: |
+        echo "🔒 Running security and compliance checks..."
+        
+        # Check for hardcoded secrets
+        if grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | grep -v "password_policy\|secret_manager\|key_ring"; then
+          echo "❌ Potential hardcoded secrets found"
+          exit 1
+        fi
+        
+        # Validate compliance labels
+        if ! grep -q "compliance_framework.*iso27001\|soc2\|gdpr" *.tf; then
+          echo "⚠️ Warning: No compliance framework labels found"
+        fi
+        
+        # Check for EU data residency
+        if grep -q "region.*us-" *.tf *.tfvars; then
+          echo "❌ US regions detected - violates GDPR data residency requirements"
+          exit 1
+        fi
+        
+        echo "✅ Security and compliance checks passed"
+    
+    - name: Terraform Plan
+      id: plan
+      run: |
+        echo "📋 Creating Terraform plan..."
+        terraform plan -detailed-exitcode -out=tfplan.out
+        
+        # Capture plan output for PR comment
+        terraform show -no-color tfplan.out > tfplan.txt
+        
+        # Check for destructive changes
+        if grep -q "# .* will be destroyed" tfplan.txt; then
+          echo "⚠️ DESTRUCTIVE CHANGES DETECTED"
+          echo "destructive=true" >> $GITHUB_OUTPUT
+        else
+          echo "destructive=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "✅ Terraform plan completed"
+    
+    - name: Upload plan artifact
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan
+        path: |
+          tfplan.out
+          tfplan.txt
+        retention-days: 30
+    
+    - name: Comment PR with plan
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const planOutput = fs.readFileSync('tfplan.txt', 'utf8');
+          const destructive = '${{ steps.plan.outputs.destructive }}' === 'true';
+          
+          const warningEmoji = destructive ? '⚠️ **DESTRUCTIVE CHANGES DETECTED** ⚠️' : '✅ **Safe Changes Only**';
+          
+          const body = `## 🏗️ Terraform Plan Results
+          
+          ${warningEmoji}
+          
+          <details>
+          <summary>📋 Terraform Plan Output</summary>
+          
+          \`\`\`hcl
+          ${planOutput.length > 50000 ? planOutput.substring(0, 50000) + '\n... (truncated)' : planOutput}
+          \`\`\`
+          
+          </details>
+          
+          ${destructive ? `
+          ### ⚠️ Destructive Changes Warning
+          This plan contains destructive changes that will delete or modify existing resources.
+          **Slack approval will be required before applying these changes.**
+          ` : ''}
+          
+          ### 🔍 Compliance Status
+          - ✅ Format check passed
+          - ✅ Configuration validation passed  
+          - ✅ Security checks passed
+          - ✅ GDPR data residency validated
+          
+          Plan will be automatically applied on merge to main branch after appropriate approvals.`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: body
+          });
+    
+    - name: Create audit log
+      run: |
+        gcloud logging write "webapp-team-infrastructure" \
+          "{
+            \"message\": \"Terraform plan completed\",
+            \"event_type\": \"terraform_plan\",
+            \"repository\": \"${{ github.repository }}\",
+            \"branch\": \"${{ github.ref_name }}\",
+            \"pr_number\": \"${{ github.event.number }}\",
+            \"actor\": \"${{ github.actor }}\",
+            \"destructive_changes\": \"${{ steps.plan.outputs.destructive }}\",
+            \"compliance_framework\": \"iso27001-soc2-gdpr\",
+            \"run_id\": \"${{ github.run_id }}\"
+          }" \
+          --severity=INFO \
+          --project=u2i-tenant-webapp
