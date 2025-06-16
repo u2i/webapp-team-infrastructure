@@ -53,6 +53,7 @@ resource "google_project" "tenant_app" {
     region            = "belgium"
     gdpr_compliant    = "true"
     tenant            = "webapp-team"
+    test_deployment    = "gitops-workflow-test"
   }
 }
 
