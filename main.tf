@@ -159,7 +159,7 @@ resource "google_storage_bucket_iam_member" "terraform_state_access" {
 
   condition {
     title      = "Only webapp team state"
-    expression = "resource.name.startsWith('u2i-tfstate/tenant-webapp-team/')"
+    expression = "resource.name.startsWith('tenant-webapp-team/')"
   }
 }
 
