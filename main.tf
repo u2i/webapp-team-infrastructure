@@ -18,6 +18,9 @@ terraform {
   backend "gcs" {
     bucket = "u2i-tfstate"
     prefix = "tenant-webapp-team"
+    
+    # Use the webapp project for backend operations
+    impersonate_service_account = "terraform-webapp-team@u2i-bootstrap.iam.gserviceaccount.com"
   }
 }
 
