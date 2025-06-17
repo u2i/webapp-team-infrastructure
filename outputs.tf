@@ -93,3 +93,25 @@ output "next_steps" {
     "6. Approve production deployment when ready"
   ]
 }
+
+output "state_migration_instructions" {
+  description = "Instructions for migrating to dedicated state bucket"
+  value = {
+    current_backend = {
+      bucket = "u2i-tfstate"
+      prefix = "tenant-webapp-team"
+    }
+    new_backend = {
+      bucket = google_storage_bucket.webapp_tfstate.name
+      prefix = "terraform/state"
+    }
+    migration_steps = [
+      "1. Run: terraform init",
+      "2. Run: terraform state pull > webapp-team.tfstate",
+      "3. Update backend config in main.tf to use new bucket",
+      "4. Run: terraform init -migrate-state",
+      "5. Confirm the migration when prompted",
+      "6. Verify state in new bucket: gsutil ls gs://${google_storage_bucket.webapp_tfstate.name}/terraform/state/"
+    ]
+  }
+}

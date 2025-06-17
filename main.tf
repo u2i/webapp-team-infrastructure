@@ -18,6 +18,8 @@ terraform {
   backend "gcs" {
     bucket = "u2i-tfstate"
     prefix = "tenant-webapp-team"
+    # TODO: Migrate to dedicated bucket after creation
+    # Future: bucket = "u2i-tenant-webapp-tfstate"
   }
 }
 
@@ -144,23 +146,112 @@ resource "google_service_account_iam_member" "github_terraform_impersonation" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/u2i/webapp-team-infrastructure"
 }
 
-# Grant state bucket access to terraform service account
-# Need separate bindings for list (no conditions) and admin (with conditions)
-resource "google_storage_bucket_iam_member" "terraform_state_list" {
-  bucket = "u2i-tfstate"
-  role   = "roles/storage.legacyBucketReader"
+# Enable Cloud KMS API for CMEK
+resource "google_project_service" "kms_api" {
+  project = google_project.tenant_app.project_id
+  service = "cloudkms.googleapis.com"
+  
+  disable_on_destroy = false
+}
+
+# Create KMS key ring for webapp team
+resource "google_kms_key_ring" "webapp_keyring" {
+  project  = google_project.tenant_app.project_id
+  name     = "webapp-team-keyring"
+  location = var.primary_region
+  
+  depends_on = [google_project_service.kms_api]
+}
+
+# Create KMS crypto key for state bucket encryption
+resource "google_kms_crypto_key" "webapp_tfstate_key" {
+  name     = "webapp-tfstate-key"
+  key_ring = google_kms_key_ring.webapp_keyring.id
+  purpose  = "ENCRYPT_DECRYPT"
+
+  rotation_period = "7776000s" # 90 days
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  labels = {
+    purpose        = "terraform-state-encryption"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+  }
+}
+
+# Grant GCS service account access to use the key
+data "google_storage_project_service_account" "gcs_account" {
+  project = google_project.tenant_app.project_id
+}
+
+resource "google_kms_crypto_key_iam_member" "gcs_encrypt_decrypt" {
+  crypto_key_id = google_kms_crypto_key.webapp_tfstate_key.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"
+}
+
+# Create a dedicated state bucket for webapp team
+resource "google_storage_bucket" "webapp_tfstate" {
+  project  = google_project.tenant_app.project_id
+  name     = "${google_project.tenant_app.project_id}-tfstate"
+  location = var.primary_region
+
+  # Security best practices
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      num_newer_versions = 30
+      with_state         = "ARCHIVED"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  # CMEK encryption
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.webapp_tfstate_key.id
+  }
+
+  labels = {
+    environment    = "multi-environment"
+    purpose        = "terraform-state"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
+    tenant         = "webapp-team"
+  }
+  
+  depends_on = [
+    google_kms_crypto_key_iam_member.gcs_encrypt_decrypt
+  ]
+}
+
+# Grant state bucket access to terraform service account for the new dedicated bucket
+resource "google_storage_bucket_iam_member" "webapp_tfstate_access" {
+  bucket = google_storage_bucket.webapp_tfstate.name
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.terraform.email}"
 }
 
-resource "google_storage_bucket_iam_member" "terraform_state_access" {
+# TEMPORARY: Grant access to shared state bucket until migration
+# This will be removed after state migration to dedicated bucket
+resource "google_storage_bucket_iam_member" "shared_tfstate_access" {
   bucket = "u2i-tfstate"
-  role   = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.terraform.email}"
-
-  condition {
-    title      = "Only webapp team state"
-    expression = "resource.name.startsWith('projects/_/buckets/u2i-tfstate/objects/tenant-webapp-team/')"
-  }
+  
+  # WARNING: This grants access to read/write objects in the entire bucket
+  # Migration to dedicated bucket is required for proper isolation
 }
 
 # Artifact Registry for container images
