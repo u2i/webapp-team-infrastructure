@@ -73,14 +73,23 @@ output "namespaces" {
 #   }
 # }
 
+output "github_actions_config" {
+  description = "Configuration for GitHub Actions workflows"
+  value = {
+    workload_identity_provider = "${google_iam_workload_identity_pool.github.name}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
+    service_account           = google_service_account.terraform.email
+    project_id                = google_project.tenant_app.project_id
+  }
+}
+
 output "next_steps" {
   description = "Next steps for deploying applications"
   value = [
-    "1. Create Kubernetes manifests with skaffold.yaml and clouddeploy.yaml",
-    "2. Build and push container image to Artifact Registry",
-    "3. Create Cloud Deploy release",
-    "4. Monitor deployment through Cloud Deploy console",
-    "5. Approve production deployment when ready",
-    "6. Configure repository access and enable tenant compliance module in main.tf as needed"
+    "1. Update GitHub repository variables with values from github_actions_config output",
+    "2. Create Kubernetes manifests with skaffold.yaml and clouddeploy.yaml",
+    "3. Build and push container image to Artifact Registry",
+    "4. Create Cloud Deploy release",
+    "5. Monitor deployment through Cloud Deploy console",
+    "6. Approve production deployment when ready"
   ]
 }

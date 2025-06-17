@@ -65,19 +65,95 @@ resource "google_project" "tenant_app" {
 # Enable required APIs for the tenant project
 resource "google_project_service" "tenant_apis" {
   for_each = toset([
+    "cloudresourcemanager.googleapis.com",  # Required for IAM operations
     "clouddeploy.googleapis.com",
     "cloudbuild.googleapis.com",
     "container.googleapis.com",
     "artifactregistry.googleapis.com",
     "storage.googleapis.com",
     "logging.googleapis.com",
-    "monitoring.googleapis.com"
+    "monitoring.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com"
   ])
 
   project = google_project.tenant_app.project_id
   service = each.key
 
   disable_on_destroy = false
+}
+
+# Terraform service account for this project
+resource "google_service_account" "terraform" {
+  project      = google_project.tenant_app.project_id
+  account_id   = "terraform"
+  display_name = "Terraform Service Account"
+  description  = "Service account for Terraform automation in webapp project"
+  
+  depends_on = [google_project_service.tenant_apis]
+}
+
+# Grant necessary permissions to terraform service account
+resource "google_project_iam_member" "terraform_permissions" {
+  for_each = toset([
+    "roles/owner",  # Full control over project resources
+  ])
+  
+  project = google_project.tenant_app.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.terraform.email}"
+}
+
+# Workload Identity Pool for GitHub Actions
+resource "google_iam_workload_identity_pool" "github" {
+  project                   = google_project.tenant_app.project_id
+  workload_identity_pool_id = "webapp-github-pool"
+  display_name              = "WebApp GitHub Actions Pool"
+  description               = "Identity pool for GitHub Actions CI/CD - WebApp Team"
+  
+  depends_on = [google_project_service.tenant_apis]
+}
+
+# GitHub provider for the pool
+resource "google_iam_workload_identity_pool_provider" "github" {
+  project                            = google_project.tenant_app.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github"
+  display_name                       = "GitHub Provider"
+  description                        = "GitHub OIDC provider for webapp-team-infrastructure repo"
+
+  attribute_mapping = {
+    "google.subject"             = "assertion.sub"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.repository_owner" = "assertion.repository_owner"
+    "attribute.ref"              = "assertion.ref"
+  }
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  # Only allow our specific repository
+  attribute_condition = "assertion.repository == 'u2i/webapp-team-infrastructure'"
+}
+
+# Allow GitHub Actions to impersonate terraform SA
+resource "google_service_account_iam_member" "github_terraform_impersonation" {
+  service_account_id = google_service_account.terraform.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/u2i/webapp-team-infrastructure"
+}
+
+# Grant state bucket access to terraform service account
+resource "google_storage_bucket_iam_member" "terraform_state_access" {
+  bucket = "u2i-tfstate"
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.terraform.email}"
+  
+  condition {
+    title      = "Only webapp team state"
+    expression = "resource.name.startsWith('u2i-tfstate/tenant-webapp-team/')"
+  }
 }
 
 # Artifact Registry for container images
