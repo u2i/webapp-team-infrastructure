@@ -1,6 +1,6 @@
 # Example Tenant Project with Cloud Deploy Pipeline
 # This demonstrates how a tenant deploys to shared GKE clusters
-# Testing tenant SA with serviceAccountTokenCreator role
+# Testing self-token creation permission for WIF
 
 terraform {
   required_version = ">= 1.6"
