@@ -1,6 +1,6 @@
 # Example Tenant Project with Cloud Deploy Pipeline
 # This demonstrates how a tenant deploys to shared GKE clusters
-# Testing complete WIF setup with project permissions
+# WIF fixed: GitHub principal has serviceAccountTokenCreator
 
 terraform {
   required_version = ">= 1.6"
