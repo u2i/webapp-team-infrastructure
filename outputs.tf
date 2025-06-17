@@ -54,23 +54,24 @@ output "namespaces" {
   }
 }
 
-output "compliance_configuration" {
-  description = "Tenant compliance module configuration and outputs"
-  value = {
-    module_enabled = "false"
-    features_available = {
-      scoped_iam            = "Enable resource-specific IAM permissions"
-      binary_authorization  = "Enable container image validation"
-      production_approval   = "Enable Cloud Deploy approval gates"
-      rbac_separation       = "Enable platform vs tenant RBAC separation"
-      compliance_monitoring = "Enable enhanced audit logging and alerts"
-      network_policies      = "Enable namespace-level network isolation"
-      admission_controllers = "Enable Pod Security Standards enforcement"
-      secret_management     = "Enable secure secret access with Workload Identity"
-    }
-    compliance_summary = module.webapp_compliance.compliance_summary
-  }
-}
+# Tenant compliance module outputs (commented out due to module being disabled)
+# output "compliance_configuration" {
+#   description = "Tenant compliance module configuration and outputs"
+#   value = {
+#     module_enabled = "false"
+#     features_available = {
+#       scoped_iam            = "Enable resource-specific IAM permissions"
+#       binary_authorization  = "Enable container image validation"
+#       production_approval   = "Enable Cloud Deploy approval gates"
+#       rbac_separation       = "Enable platform vs tenant RBAC separation"
+#       compliance_monitoring = "Enable enhanced audit logging and alerts"
+#       network_policies      = "Enable namespace-level network isolation"
+#       admission_controllers = "Enable Pod Security Standards enforcement"
+#       secret_management     = "Enable secure secret access with Workload Identity"
+#     }
+#     compliance_summary = module.webapp_compliance.compliance_summary
+#   }
+# }
 
 output "next_steps" {
   description = "Next steps for deploying applications"
@@ -80,6 +81,6 @@ output "next_steps" {
     "3. Create Cloud Deploy release",
     "4. Monitor deployment through Cloud Deploy console",
     "5. Approve production deployment when ready",
-    "6. Enable tenant compliance features incrementally in main.tf as needed"
+    "6. Configure repository access and enable tenant compliance module in main.tf as needed"
   ]
 }

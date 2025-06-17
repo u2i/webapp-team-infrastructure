@@ -497,25 +497,28 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
 }
 
 # Tenant Compliance Module - All features disabled by default
-module "webapp_compliance" {
-  source = "github.com/u2i/terraform-google-compliance-modules//modules/tenant-compliance?ref=v1.6.1"
-
-  tenant_project_id = google_project.tenant_app.project_id
-  tenant_name       = "webapp-team"
-  tenant_namespace  = "webapp-team"
-  region            = var.primary_region
-
-  # GKE configuration
-  gke_nonprod_project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
-  gke_prod_project    = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
-
-  # All compliance features disabled by default
-  enable_scoped_iam            = false
-  enable_binary_authorization  = false
-  enable_production_approval   = false
-  enable_rbac_separation       = false
-  enable_compliance_monitoring = false
-  enable_network_policies      = false
-  enable_admission_controllers = false
-  enable_secret_management     = false
-}
+# Note: Module temporarily commented out due to private repo access in GitHub Actions
+# To enable, uncomment the module block below and configure repository access
+#
+# module "webapp_compliance" {
+#   source = "github.com/u2i/terraform-google-compliance-modules//modules/tenant-compliance?ref=v1.6.1"
+#
+#   tenant_project_id = google_project.tenant_app.project_id
+#   tenant_name       = "webapp-team"
+#   tenant_namespace  = "webapp-team"
+#   region            = var.primary_region
+#
+#   # GKE configuration
+#   gke_nonprod_project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
+#   gke_prod_project    = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
+#
+#   # All compliance features disabled by default
+#   enable_scoped_iam            = false
+#   enable_binary_authorization  = false
+#   enable_production_approval   = false
+#   enable_rbac_separation       = false
+#   enable_compliance_monitoring = false
+#   enable_network_policies      = false
+#   enable_admission_controllers = false
+#   enable_secret_management     = false
+# }
