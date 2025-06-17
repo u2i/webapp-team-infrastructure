@@ -59,14 +59,14 @@ output "compliance_configuration" {
   value = {
     module_enabled = "false"
     features_available = {
-      scoped_iam           = "Enable resource-specific IAM permissions"
-      binary_authorization = "Enable container image validation"
-      production_approval  = "Enable Cloud Deploy approval gates"
-      rbac_separation     = "Enable platform vs tenant RBAC separation"
+      scoped_iam            = "Enable resource-specific IAM permissions"
+      binary_authorization  = "Enable container image validation"
+      production_approval   = "Enable Cloud Deploy approval gates"
+      rbac_separation       = "Enable platform vs tenant RBAC separation"
       compliance_monitoring = "Enable enhanced audit logging and alerts"
-      network_policies    = "Enable namespace-level network isolation"
+      network_policies      = "Enable namespace-level network isolation"
       admission_controllers = "Enable Pod Security Standards enforcement"
-      secret_management   = "Enable secure secret access with Workload Identity"
+      secret_management     = "Enable secure secret access with Workload Identity"
     }
     compliance_summary = module.webapp_compliance.compliance_summary
   }

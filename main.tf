@@ -13,7 +13,7 @@ terraform {
       version = ">= 2.20"
     }
   }
-  
+
   backend "gcs" {
     bucket = "u2i-tfstate"
     prefix = "tenant-webapp-team"
@@ -48,15 +48,15 @@ resource "google_project" "tenant_app" {
   project_id      = "u2i-tenant-webapp"
   billing_account = var.billing_account
   folder_id       = data.terraform_remote_state.organization.outputs.folder_structure.compliant
-  
+
   labels = {
-    environment         = "multi-environment"
-    purpose            = "tenant-application"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    region            = "belgium"
-    gdpr_compliant    = "true"
-    tenant            = "webapp-team"
+    environment    = "multi-environment"
+    purpose        = "tenant-application"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    region         = "belgium"
+    gdpr_compliant = "true"
+    tenant         = "webapp-team"
   }
 }
 
@@ -71,10 +71,10 @@ resource "google_project_service" "tenant_apis" {
     "logging.googleapis.com",
     "monitoring.googleapis.com"
   ])
-  
+
   project = google_project.tenant_app.project_id
   service = each.key
-  
+
   disable_on_destroy = false
 }
 
@@ -85,14 +85,14 @@ resource "google_artifact_registry_repository" "webapp_images" {
   repository_id = "webapp-images"
   description   = "Container images for webapp tenant"
   format        = "DOCKER"
-  
+
   labels = {
-    environment         = "multi-environment"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    gdpr_compliant    = "true"
+    environment    = "multi-environment"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
   }
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
@@ -110,28 +110,28 @@ resource "google_clouddeploy_delivery_pipeline" "webapp_pipeline" {
   location    = var.primary_region
   name        = "webapp-delivery-pipeline"
   description = "Delivery pipeline for webapp from dev to staging to production"
-  
+
   serial_pipeline {
     stages {
       target_id = google_clouddeploy_target.nonprod_target.name
       profiles  = ["nonprod"]
     }
-    
+
     stages {
       target_id = google_clouddeploy_target.prod_target.name
       profiles  = ["prod"]
-      
+
       # Standard deployment strategy
     }
   }
-  
+
   labels = {
-    environment         = "multi-environment"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    gdpr_compliant    = "true"
+    environment    = "multi-environment"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
   }
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
@@ -141,24 +141,24 @@ resource "google_clouddeploy_target" "nonprod_target" {
   location    = var.primary_region
   name        = "nonprod-gke"
   description = "Non-production GKE cluster target"
-  
+
   gke {
     cluster = "projects/${data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id}/locations/${var.primary_region}/clusters/nonprod-autopilot"
   }
-  
+
   execution_configs {
-    usages            = ["RENDER", "DEPLOY"]
-    service_account   = google_service_account.cloud_deploy_sa.email
-    artifact_storage  = "gs://${google_storage_bucket.deployment_artifacts.name}"
+    usages           = ["RENDER", "DEPLOY"]
+    service_account  = google_service_account.cloud_deploy_sa.email
+    artifact_storage = "gs://${google_storage_bucket.deployment_artifacts.name}"
   }
-  
+
   labels = {
-    environment         = "non-production"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    gdpr_compliant    = "true"
+    environment    = "non-production"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
   }
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
@@ -168,27 +168,27 @@ resource "google_clouddeploy_target" "prod_target" {
   location    = var.primary_region
   name        = "prod-gke"
   description = "Production GKE cluster target"
-  
+
   gke {
     cluster = "projects/${data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id}/locations/${var.primary_region}/clusters/prod-autopilot"
   }
-  
+
   execution_configs {
-    usages            = ["RENDER", "DEPLOY"]
-    service_account   = google_service_account.cloud_deploy_sa.email
-    artifact_storage  = "gs://${google_storage_bucket.deployment_artifacts.name}"
+    usages           = ["RENDER", "DEPLOY"]
+    service_account  = google_service_account.cloud_deploy_sa.email
+    artifact_storage = "gs://${google_storage_bucket.deployment_artifacts.name}"
   }
-  
+
   # Require manual approval for production
   require_approval = true
-  
+
   labels = {
-    environment         = "production"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    gdpr_compliant    = "true"
+    environment    = "production"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
   }
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
@@ -197,14 +197,14 @@ resource "google_storage_bucket" "deployment_artifacts" {
   project  = google_project.tenant_app.project_id
   name     = "${google_project.tenant_app.project_id}-deploy-artifacts"
   location = var.primary_region
-  
+
   # Compliance settings
   uniform_bucket_level_access = true
-  
+
   versioning {
     enabled = true
   }
-  
+
   lifecycle_rule {
     condition {
       age = 90
@@ -213,12 +213,12 @@ resource "google_storage_bucket" "deployment_artifacts" {
       type = "Delete"
     }
   }
-  
+
   labels = {
-    environment         = "multi-environment"
-    compliance         = "iso27001-soc2-gdpr"
-    data_residency     = "eu"
-    gdpr_compliant    = "true"
+    environment    = "multi-environment"
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    gdpr_compliant = "true"
   }
 }
 
@@ -243,7 +243,7 @@ resource "google_project_iam_member" "cloud_deploy_tenant_permissions" {
     "roles/artifactregistry.reader",
     "roles/storage.objectAdmin"
   ])
-  
+
   project = google_project.tenant_app.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
@@ -252,21 +252,21 @@ resource "google_project_iam_member" "cloud_deploy_tenant_permissions" {
 # Create tenant namespace in shared clusters
 resource "kubernetes_namespace" "webapp_nonprod" {
   provider = kubernetes.nonprod
-  
+
   metadata {
     name = "webapp-team"
-    
+
     labels = {
-      "tenant"              = "webapp-team"
-      "environment"         = "non-production"
-      "compliance"         = "iso27001-soc2-gdpr"
-      "data-residency"     = "eu"
-      "gdpr-compliant"     = "true"
+      "tenant"                             = "webapp-team"
+      "environment"                        = "non-production"
+      "compliance"                         = "iso27001-soc2-gdpr"
+      "data-residency"                     = "eu"
+      "gdpr-compliant"                     = "true"
       "pod-security.kubernetes.io/enforce" = "restricted"
       "pod-security.kubernetes.io/audit"   = "restricted"
       "pod-security.kubernetes.io/warn"    = "restricted"
     }
-    
+
     annotations = {
       "tenant-project" = google_project.tenant_app.project_id
       "created-by"     = "terraform"
@@ -276,21 +276,21 @@ resource "kubernetes_namespace" "webapp_nonprod" {
 
 resource "kubernetes_namespace" "webapp_prod" {
   provider = kubernetes.prod
-  
+
   metadata {
     name = "webapp-team"
-    
+
     labels = {
-      "tenant"              = "webapp-team"
-      "environment"         = "production"
-      "compliance"         = "iso27001-soc2-gdpr"
-      "data-residency"     = "eu"
-      "gdpr-compliant"     = "true"
+      "tenant"                             = "webapp-team"
+      "environment"                        = "production"
+      "compliance"                         = "iso27001-soc2-gdpr"
+      "data-residency"                     = "eu"
+      "gdpr-compliant"                     = "true"
       "pod-security.kubernetes.io/enforce" = "restricted"
       "pod-security.kubernetes.io/audit"   = "restricted"
       "pod-security.kubernetes.io/warn"    = "restricted"
     }
-    
+
     annotations = {
       "tenant-project" = google_project.tenant_app.project_id
       "created-by"     = "terraform"
@@ -301,40 +301,40 @@ resource "kubernetes_namespace" "webapp_prod" {
 # Resource quota for tenant namespace
 resource "kubernetes_resource_quota" "webapp_nonprod_quota" {
   provider = kubernetes.nonprod
-  
+
   metadata {
     name      = "webapp-team-quota"
     namespace = kubernetes_namespace.webapp_nonprod.metadata[0].name
   }
-  
+
   spec {
     hard = {
       "requests.cpu"    = "2"
       "requests.memory" = "4Gi"
       "limits.cpu"      = "4"
       "limits.memory"   = "8Gi"
-      "pods"           = "10"
-      "services"       = "5"
+      "pods"            = "10"
+      "services"        = "5"
     }
   }
 }
 
 resource "kubernetes_resource_quota" "webapp_prod_quota" {
   provider = kubernetes.prod
-  
+
   metadata {
     name      = "webapp-team-quota"
     namespace = kubernetes_namespace.webapp_prod.metadata[0].name
   }
-  
+
   spec {
     hard = {
       "requests.cpu"    = "4"
       "requests.memory" = "8Gi"
       "limits.cpu"      = "8"
       "limits.memory"   = "16Gi"
-      "pods"           = "20"
-      "services"       = "10"
+      "pods"            = "20"
+      "services"        = "10"
     }
   }
 }
@@ -342,17 +342,17 @@ resource "kubernetes_resource_quota" "webapp_prod_quota" {
 # Network policies for tenant isolation
 resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
   provider = kubernetes.nonprod
-  
+
   metadata {
     name      = "webapp-team-isolation"
     namespace = kubernetes_namespace.webapp_nonprod.metadata[0].name
   }
-  
+
   spec {
     pod_selector {}
-    
+
     policy_types = ["Ingress", "Egress"]
-    
+
     # Allow ingress from same namespace and ingress controllers
     ingress {
       from {
@@ -363,7 +363,7 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
         }
       }
     }
-    
+
     ingress {
       from {
         namespace_selector {
@@ -373,7 +373,7 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
         }
       }
     }
-    
+
     # Allow egress to DNS, same namespace, and external (for business logic)
     egress {
       to {
@@ -388,7 +388,7 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
         protocol = "UDP"
       }
     }
-    
+
     egress {
       to {
         namespace_selector {
@@ -398,7 +398,7 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
         }
       }
     }
-    
+
     # Allow egress to external services
     egress {
       to {}
@@ -407,7 +407,7 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
         protocol = "TCP"
       }
     }
-    
+
     egress {
       to {}
       ports {
@@ -420,17 +420,17 @@ resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
 
 resource "kubernetes_network_policy" "webapp_isolation_prod" {
   provider = kubernetes.prod
-  
+
   metadata {
     name      = "webapp-team-isolation"
     namespace = kubernetes_namespace.webapp_prod.metadata[0].name
   }
-  
+
   spec {
     pod_selector {}
-    
+
     policy_types = ["Ingress", "Egress"]
-    
+
     # Allow ingress from same namespace and ingress controllers
     ingress {
       from {
@@ -441,7 +441,7 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
         }
       }
     }
-    
+
     ingress {
       from {
         namespace_selector {
@@ -451,7 +451,7 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
         }
       }
     }
-    
+
     # Allow egress to DNS, same namespace, and external (for business logic)
     egress {
       to {
@@ -466,7 +466,7 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
         protocol = "UDP"
       }
     }
-    
+
     egress {
       to {
         namespace_selector {
@@ -476,7 +476,7 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
         }
       }
     }
-    
+
     # Allow egress to external services
     egress {
       to {}
@@ -485,7 +485,7 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
         protocol = "TCP"
       }
     }
-    
+
     egress {
       to {}
       ports {
@@ -499,23 +499,23 @@ resource "kubernetes_network_policy" "webapp_isolation_prod" {
 # Tenant Compliance Module - All features disabled by default
 module "webapp_compliance" {
   source = "github.com/u2i/terraform-google-compliance-modules//modules/tenant-compliance?ref=v1.6.1"
-  
+
   tenant_project_id = google_project.tenant_app.project_id
   tenant_name       = "webapp-team"
   tenant_namespace  = "webapp-team"
   region            = var.primary_region
-  
+
   # GKE configuration
   gke_nonprod_project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
   gke_prod_project    = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
-  
+
   # All compliance features disabled by default
-  enable_scoped_iam           = false
-  enable_binary_authorization = false
-  enable_production_approval  = false
-  enable_rbac_separation     = false
+  enable_scoped_iam            = false
+  enable_binary_authorization  = false
+  enable_production_approval   = false
+  enable_rbac_separation       = false
   enable_compliance_monitoring = false
-  enable_network_policies    = false
+  enable_network_policies      = false
   enable_admission_controllers = false
-  enable_secret_management   = false
+  enable_secret_management     = false
 }
