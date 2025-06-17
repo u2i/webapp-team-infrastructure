@@ -44,10 +44,7 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
-    - name: Setup Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v1
-      with:
-        project_id: ${{ vars.PROJECT_ID }}
+    # Skip gcloud SDK setup - just use the authenticated credentials from previous step
     
     - name: Terraform Format Check
       run: |
