@@ -148,7 +148,7 @@ resource "google_service_account_iam_member" "github_terraform_impersonation" {
 # Need separate bindings for list (no conditions) and admin (with conditions)
 resource "google_storage_bucket_iam_member" "terraform_state_list" {
   bucket = "u2i-tfstate"
-  role   = "roles/storage.objectViewer"
+  role   = "roles/storage.legacyBucketReader"
   member = "serviceAccount:${google_service_account.terraform.email}"
 }
 
