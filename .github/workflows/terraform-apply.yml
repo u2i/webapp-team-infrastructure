@@ -22,7 +22,6 @@ env:
   TF_VERSION: '1.6.6'
   TF_IN_AUTOMATION: true
   TF_INPUT: false
-  PROJECT_ID: u2i-tenant-webapp
 
 jobs:
   detect-changes:
@@ -50,10 +49,10 @@ jobs:
         terraform_version: ${{ env.TF_VERSION }}
     
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/github-actions/providers/github'
-        service_account: 'terraform-organization@u2i-bootstrap.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
@@ -231,7 +230,7 @@ jobs:
     
     environment:
       name: infrastructure
-      url: https://console.cloud.google.com/home/dashboard?project=u2i-tenant-webapp
+      url: https://console.cloud.google.com/home/dashboard?project=${{ vars.PROJECT_ID }}
     
     permissions:
       contents: read
@@ -247,10 +246,10 @@ jobs:
         terraform_version: ${{ env.TF_VERSION }}
     
     - name: Authenticate to Google Cloud
-      uses: google-github-actions/auth@v1
+      uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/github-actions/providers/github'
-        service_account: 'terraform-organization@u2i-bootstrap.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
@@ -272,7 +271,7 @@ jobs:
             \"run_id\": \"${{ github.run_id }}\"
           }" \
           --severity=NOTICE \
-          --project=$PROJECT_ID
+          --project=${{ vars.PROJECT_ID }}
     
     - name: Terraform Init
       run: terraform init
@@ -298,7 +297,7 @@ jobs:
         echo "🔍 Verifying infrastructure health..."
         
         # Check if the tenant project exists and is active
-        PROJECT_STATE=$(gcloud projects describe $PROJECT_ID --format="value(lifecycleState)")
+        PROJECT_STATE=$(gcloud projects describe ${{ vars.PROJECT_ID }} --format="value(lifecycleState)")
         if [ "$PROJECT_STATE" != "ACTIVE" ]; then
           echo "❌ Project is not active: $PROJECT_STATE"
           exit 1
@@ -307,7 +306,7 @@ jobs:
         # Check if Cloud Deploy pipeline exists
         if gcloud deploy delivery-pipelines describe webapp-delivery-pipeline \
           --region=europe-west1 \
-          --project=$PROJECT_ID \
+          --project=${{ vars.PROJECT_ID }} \
           --quiet > /dev/null 2>&1; then
           echo "✅ Cloud Deploy pipeline is configured"
         else
@@ -330,7 +329,7 @@ jobs:
             \"run_id\": \"${{ github.run_id }}\"
           }" \
           --severity=NOTICE \
-          --project=$PROJECT_ID
+          --project=${{ vars.PROJECT_ID }}
     
     - name: Notify Slack of completion
       if: always()
@@ -377,7 +376,7 @@ jobs:
         echo "## 🏗️ Infrastructure Apply Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Status**: ✅ Infrastructure changes applied successfully" >> $GITHUB_STEP_SUMMARY
-        echo "**Project**: $PROJECT_ID" >> $GITHUB_STEP_SUMMARY
+        echo "**Project**: ${{ vars.PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
         echo "**Approved by**: ${{ needs.slack-approval.outputs.approval_user || 'Emergency override' }}" >> $GITHUB_STEP_SUMMARY
         echo "**Destructive changes**: ${{ needs.detect-changes.outputs.destructive }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
