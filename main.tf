@@ -1,6 +1,6 @@
 # Example Tenant Project with Cloud Deploy Pipeline
 # This demonstrates how a tenant deploys to shared GKE clusters
-# Testing tenant-specific service account for state isolation
+# Testing tenant-specific service account with baseline org permissions
 
 terraform {
   required_version = ">= 1.6"
