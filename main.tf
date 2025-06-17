@@ -23,7 +23,7 @@ terraform {
 
 provider "google" {
   user_project_override = true
-  billing_project       = "u2i-bootstrap"
+  billing_project       = "u2i-tenant-webapp"
 }
 
 # Get organization and GKE outputs
