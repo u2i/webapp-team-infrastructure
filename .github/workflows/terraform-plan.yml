@@ -46,6 +46,8 @@ jobs:
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.PROJECT_ID }}
     
     - name: Terraform Format Check
       run: |

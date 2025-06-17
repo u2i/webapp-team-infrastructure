@@ -56,6 +56,8 @@ jobs:
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.PROJECT_ID }}
     
     - name: Terraform Init
       run: terraform init
@@ -253,6 +255,8 @@ jobs:
     
     - name: Setup Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ vars.PROJECT_ID }}
     
     - name: Create pre-apply audit log
       run: |
