@@ -150,7 +150,7 @@ resource "google_service_account_iam_member" "github_terraform_impersonation" {
 resource "google_project_service" "kms_api" {
   project = google_project.tenant_app.project_id
   service = "cloudkms.googleapis.com"
-  
+
   disable_on_destroy = false
 }
 
@@ -159,7 +159,7 @@ resource "google_kms_key_ring" "webapp_keyring" {
   project  = google_project.tenant_app.project_id
   name     = "webapp-team-keyring"
   location = var.primary_region
-  
+
   depends_on = [google_project_service.kms_api]
 }
 
@@ -230,7 +230,7 @@ resource "google_storage_bucket" "webapp_tfstate" {
     gdpr_compliant = "true"
     tenant         = "webapp-team"
   }
-  
+
   depends_on = [
     google_kms_crypto_key_iam_member.gcs_encrypt_decrypt
   ]
@@ -249,7 +249,7 @@ resource "google_storage_bucket_iam_member" "shared_tfstate_access" {
   bucket = "u2i-tfstate"
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.terraform.email}"
-  
+
   # WARNING: This grants access to read/write objects in the entire bucket
   # Migration to dedicated bucket is required for proper isolation
 }
