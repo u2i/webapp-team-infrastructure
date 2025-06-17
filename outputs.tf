@@ -77,8 +77,8 @@ output "github_actions_config" {
   description = "Configuration for GitHub Actions workflows"
   value = {
     workload_identity_provider = "${google_iam_workload_identity_pool.github.name}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
-    service_account           = google_service_account.terraform.email
-    project_id                = google_project.tenant_app.project_id
+    service_account            = google_service_account.terraform.email
+    project_id                 = google_project.tenant_app.project_id
   }
 }
 

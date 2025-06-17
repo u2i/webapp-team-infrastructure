@@ -65,7 +65,7 @@ resource "google_project" "tenant_app" {
 # Enable required APIs for the tenant project
 resource "google_project_service" "tenant_apis" {
   for_each = toset([
-    "cloudresourcemanager.googleapis.com",  # Required for IAM operations
+    "cloudresourcemanager.googleapis.com", # Required for IAM operations
     "clouddeploy.googleapis.com",
     "cloudbuild.googleapis.com",
     "container.googleapis.com",
@@ -89,16 +89,16 @@ resource "google_service_account" "terraform" {
   account_id   = "terraform"
   display_name = "Terraform Service Account"
   description  = "Service account for Terraform automation in webapp project"
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
 # Grant necessary permissions to terraform service account
 resource "google_project_iam_member" "terraform_permissions" {
   for_each = toset([
-    "roles/owner",  # Full control over project resources
+    "roles/owner", # Full control over project resources
   ])
-  
+
   project = google_project.tenant_app.project_id
   role    = each.key
   member  = "serviceAccount:${google_service_account.terraform.email}"
@@ -110,7 +110,7 @@ resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "webapp-github-pool"
   display_name              = "WebApp GitHub Actions Pool"
   description               = "Identity pool for GitHub Actions CI/CD - WebApp Team"
-  
+
   depends_on = [google_project_service.tenant_apis]
 }
 
@@ -149,7 +149,7 @@ resource "google_storage_bucket_iam_member" "terraform_state_access" {
   bucket = "u2i-tfstate"
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.terraform.email}"
-  
+
   condition {
     title      = "Only webapp team state"
     expression = "resource.name.startsWith('u2i-tfstate/tenant-webapp-team/')"
