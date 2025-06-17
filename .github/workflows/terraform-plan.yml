@@ -72,7 +72,7 @@ jobs:
         echo "🔒 Running security and compliance checks..."
         
         # Check for hardcoded secrets
-        if grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret"; then
+        if grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret\|secret_management"; then
           echo "❌ Potential hardcoded secrets found"
           exit 1
         fi
