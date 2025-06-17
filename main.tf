@@ -145,6 +145,13 @@ resource "google_service_account_iam_member" "github_terraform_impersonation" {
 }
 
 # Grant state bucket access to terraform service account
+# Need separate bindings for list (no conditions) and admin (with conditions)
+resource "google_storage_bucket_iam_member" "terraform_state_list" {
+  bucket = "u2i-tfstate"
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.terraform.email}"
+}
+
 resource "google_storage_bucket_iam_member" "terraform_state_access" {
   bucket = "u2i-tfstate"
   role   = "roles/storage.objectAdmin"
