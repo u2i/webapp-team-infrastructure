@@ -307,20 +307,7 @@ resource "google_clouddeploy_delivery_pipeline" "webapp_pipeline" {
   depends_on = [google_project_service.tenant_apis]
 }
 
-# Test resource for destructive change testing
-resource "google_storage_bucket" "test_destruction" {
-  project       = google_project.tenant_app.project_id
-  name          = "${google_project.tenant_app.project_id}-test-destruction"
-  location      = var.primary_region
-  force_destroy = true
-
-  labels = {
-    purpose        = "testing"
-    temporary      = "true"
-    compliance     = "iso27001-soc2-gdpr"
-    data_residency = "eu"
-  }
-}
+# Test resource removed to trigger destructive change detection
 
 # Non-production GKE target
 resource "google_clouddeploy_target" "nonprod_target" {
