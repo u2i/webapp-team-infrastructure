@@ -55,7 +55,7 @@ resource "google_project" "tenant_app" {
     region         = "belgium"
     gdpr_compliant = "true"
     tenant         = "webapp-team"
-    workflow_test  = "dispatch-with-permissions"
+    workflow_test  = "dispatch-with-correct-org"
   }
 }
 
