@@ -43,6 +43,36 @@ jobs:
     
     # Skip gcloud SDK setup - just use the authenticated credentials from previous step
     
+    - name: Security and Compliance Checks
+      run: |
+        echo "🔒 Running security and compliance checks..."
+        
+        # Check for hardcoded secrets (excluding comments and legitimate uses)
+        SECRETS_FOUND=$(grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | \
+          grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret\|secret_management" | \
+          grep -v "kms_key\|crypto_key\|default_kms_key_name\|keyring\|tfstate-key" | \
+          grep -v "# Create\|# Grant\|# Enable" | \
+          grep -v "^[[:space:]]*#" || true)
+        
+        if [ -n "$SECRETS_FOUND" ]; then
+          echo "❌ Potential hardcoded secrets found:"
+          echo "$SECRETS_FOUND"
+          exit 1
+        fi
+        
+        # Validate compliance labels
+        if ! grep -q "compliance.*iso27001\|soc2\|gdpr" *.tf; then
+          echo "⚠️ Warning: No compliance framework labels found"
+        fi
+        
+        # Check for EU data residency
+        if grep -q "region.*us-" *.tf *.tfvars; then
+          echo "❌ US regions detected - violates GDPR data residency requirements"
+          exit 1
+        fi
+        
+        echo "✅ Security and compliance checks passed"
+    
     - name: Terraform Format Check
       run: |
         echo "🔍 Checking Terraform formatting..."
@@ -63,36 +93,6 @@ jobs:
         echo "🔍 Validating Terraform configuration..."
         terraform validate
         echo "✅ Terraform configuration is valid"
-    
-    - name: Security and Compliance Checks
-      run: |
-        echo "🔒 Running security and compliance checks..."
-        
-        # Check for hardcoded secrets (excluding comments and legitimate uses)
-        SECRETS_FOUND=$(grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | \
-          grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret\|secret_management" | \
-          grep -v "kms_key\|crypto_key\|default_kms_key_name\|keyring\|tfstate-key" | \
-          grep -v "# Create\|# Grant\|# Enable" | \
-          grep -v "^[[:space:]]*#" || true)
-        
-        if [ -n "$SECRETS_FOUND" ]; then
-          echo "❌ Potential hardcoded secrets found:"
-          echo "$SECRETS_FOUND"
-          exit 1
-        fi
-        
-        # Validate compliance labels
-        if ! grep -q "compliance_framework.*iso27001\|soc2\|gdpr" *.tf; then
-          echo "⚠️ Warning: No compliance framework labels found"
-        fi
-        
-        # Check for EU data residency
-        if grep -q "region.*us-" *.tf *.tfvars; then
-          echo "❌ US regions detected - violates GDPR data residency requirements"
-          exit 1
-        fi
-        
-        echo "✅ Security and compliance checks passed"
     
     - name: Terraform Plan
       id: plan
