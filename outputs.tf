@@ -95,7 +95,7 @@ output "next_steps" {
 }
 
 output "state_migration_instructions" {
-  description = "Instructions for migrating to dedicated state bucket"
+  description = "Instructions for migrating to dedicated state bucket for improved isolation"
   value = {
     current_backend = {
       bucket = "u2i-tfstate"
