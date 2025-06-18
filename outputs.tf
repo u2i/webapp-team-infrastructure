@@ -94,6 +94,21 @@ output "next_steps" {
   ]
 }
 
+output "state_migration_status" {
+  description = "State migration to dedicated bucket completed successfully"
+  value = {
+    status = "completed"
+    bucket = "u2i-tenant-webapp-tfstate"
+    prefix = "terraform/state"
+    features = [
+      "Project-local state storage",
+      "CMEK encryption with 90-day rotation",
+      "Complete isolation from other tenants",
+      "Uniform bucket-level access enabled"
+    ]
+  }
+}
+
 output "state_migration_instructions" {
   description = "Instructions for migrating to dedicated state bucket for improved isolation"
   value = {
