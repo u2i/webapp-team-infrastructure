@@ -71,9 +71,16 @@ jobs:
       run: |
         echo "🔒 Running security and compliance checks..."
         
-        # Check for hardcoded secrets
-        if grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret\|secret_management\|kms_key\|crypto_key\|default_kms_key_name\|^#\|//\|keyring\|tfstate-key"; then
-          echo "❌ Potential hardcoded secrets found"
+        # Check for hardcoded secrets (excluding comments and legitimate uses)
+        SECRETS_FOUND=$(grep -r "password\|secret\|key" . --include="*.tf" --include="*.tfvars" | \
+          grep -v "password_policy\|secret_manager\|key_ring\|each\.key\|enable_secret\|secret_management" | \
+          grep -v "kms_key\|crypto_key\|default_kms_key_name\|keyring\|tfstate-key" | \
+          grep -v "# Create\|# Grant\|# Enable" | \
+          grep -v "^[[:space:]]*#" || true)
+        
+        if [ -n "$SECRETS_FOUND" ]; then
+          echo "❌ Potential hardcoded secrets found:"
+          echo "$SECRETS_FOUND"
           exit 1
         fi
         
