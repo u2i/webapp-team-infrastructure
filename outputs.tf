@@ -141,5 +141,6 @@ output "compliance_status" {
     audit_logging  = "Enabled with 30-day retention"
     access_control = "Project-local service accounts with least privilege"
     workflow_enabled = "automatic"
+    workflow_fixed = "true"
   }
 }
