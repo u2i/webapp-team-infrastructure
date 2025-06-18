@@ -227,9 +227,9 @@ jobs:
           echo "Checking for approval... ($elapsed/$timeout seconds)"
           
           # Check GCS bucket for approval decision (managed by shared infrastructure)
-          if gsutil -q stat gs://u2i-terraform-approvals/approvals/${{ github.run_id }} 2>/dev/null; then
-            APPROVAL_STATUS=$(gsutil cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }})
-            APPROVAL_METADATA=$(gsutil cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }}.json 2>/dev/null || echo '{}')
+          if gcloud storage ls gs://u2i-terraform-approvals/approvals/${{ github.run_id }} >/dev/null 2>&1; then
+            APPROVAL_STATUS=$(gcloud storage cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }})
+            APPROVAL_METADATA=$(gcloud storage cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }}.json 2>/dev/null || echo '{}')
             
             if [ "$APPROVAL_STATUS" == "true" ]; then
               APPROVER=$(echo "$APPROVAL_METADATA" | jq -r '.approver // "unknown"')
