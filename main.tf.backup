@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 5.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.20"
+    }
   }
 
   backend "gcs" {
@@ -422,12 +426,252 @@ resource "google_project_iam_member" "cloud_deploy_tenant_permissions" {
   member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
 }
 
-# Kubernetes namespaces are now managed in shared-gke/tenant-namespaces/webapp-team.tf
-# This ensures proper cross-project permissions and centralized management
+# Create tenant namespace in shared clusters
+resource "kubernetes_namespace" "webapp_nonprod" {
+  provider = kubernetes.nonprod
 
-# Resource quotas are now managed in shared-gke/tenant-namespaces/webapp-team.tf
+  metadata {
+    name = "webapp-team"
 
-# Network policies are now managed in shared-gke/tenant-namespaces/webapp-team.tf
+    labels = {
+      "tenant"                             = "webapp-team"
+      "environment"                        = "non-production"
+      "compliance"                         = "iso27001-soc2-gdpr"
+      "data-residency"                     = "eu"
+      "gdpr-compliant"                     = "true"
+      "pod-security.kubernetes.io/enforce" = "restricted"
+      "pod-security.kubernetes.io/audit"   = "restricted"
+      "pod-security.kubernetes.io/warn"    = "restricted"
+    }
+
+    annotations = {
+      "tenant-project" = google_project.tenant_app.project_id
+      "created-by"     = "terraform"
+    }
+  }
+}
+
+resource "kubernetes_namespace" "webapp_prod" {
+  provider = kubernetes.prod
+
+  metadata {
+    name = "webapp-team"
+
+    labels = {
+      "tenant"                             = "webapp-team"
+      "environment"                        = "production"
+      "compliance"                         = "iso27001-soc2-gdpr"
+      "data-residency"                     = "eu"
+      "gdpr-compliant"                     = "true"
+      "pod-security.kubernetes.io/enforce" = "restricted"
+      "pod-security.kubernetes.io/audit"   = "restricted"
+      "pod-security.kubernetes.io/warn"    = "restricted"
+    }
+
+    annotations = {
+      "tenant-project" = google_project.tenant_app.project_id
+      "created-by"     = "terraform"
+    }
+  }
+}
+
+# Resource quota for tenant namespace
+resource "kubernetes_resource_quota" "webapp_nonprod_quota" {
+  provider = kubernetes.nonprod
+
+  metadata {
+    name      = "webapp-team-quota"
+    namespace = kubernetes_namespace.webapp_nonprod.metadata[0].name
+  }
+
+  spec {
+    hard = {
+      "requests.cpu"    = "2"
+      "requests.memory" = "4Gi"
+      "limits.cpu"      = "4"
+      "limits.memory"   = "8Gi"
+      "pods"            = "10"
+      "services"        = "5"
+    }
+  }
+}
+
+resource "kubernetes_resource_quota" "webapp_prod_quota" {
+  provider = kubernetes.prod
+
+  metadata {
+    name      = "webapp-team-quota"
+    namespace = kubernetes_namespace.webapp_prod.metadata[0].name
+  }
+
+  spec {
+    hard = {
+      "requests.cpu"    = "4"
+      "requests.memory" = "8Gi"
+      "limits.cpu"      = "8"
+      "limits.memory"   = "16Gi"
+      "pods"            = "20"
+      "services"        = "10"
+    }
+  }
+}
+
+# Network policies for tenant isolation
+resource "kubernetes_network_policy" "webapp_isolation_nonprod" {
+  provider = kubernetes.nonprod
+
+  metadata {
+    name      = "webapp-team-isolation"
+    namespace = kubernetes_namespace.webapp_nonprod.metadata[0].name
+  }
+
+  spec {
+    pod_selector {}
+
+    policy_types = ["Ingress", "Egress"]
+
+    # Allow ingress from same namespace and ingress controllers
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            name = kubernetes_namespace.webapp_nonprod.metadata[0].name
+          }
+        }
+      }
+    }
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            name = "gke-system"
+          }
+        }
+      }
+    }
+
+    # Allow egress to DNS, same namespace, and external (for business logic)
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            name = "kube-system"
+          }
+        }
+      }
+      ports {
+        port     = "53"
+        protocol = "UDP"
+      }
+    }
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            name = kubernetes_namespace.webapp_nonprod.metadata[0].name
+          }
+        }
+      }
+    }
+
+    # Allow egress to external services
+    egress {
+      to {}
+      ports {
+        port     = "443"
+        protocol = "TCP"
+      }
+    }
+
+    egress {
+      to {}
+      ports {
+        port     = "80"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+resource "kubernetes_network_policy" "webapp_isolation_prod" {
+  provider = kubernetes.prod
+
+  metadata {
+    name      = "webapp-team-isolation"
+    namespace = kubernetes_namespace.webapp_prod.metadata[0].name
+  }
+
+  spec {
+    pod_selector {}
+
+    policy_types = ["Ingress", "Egress"]
+
+    # Allow ingress from same namespace and ingress controllers
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            name = kubernetes_namespace.webapp_prod.metadata[0].name
+          }
+        }
+      }
+    }
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            name = "gke-system"
+          }
+        }
+      }
+    }
+
+    # Allow egress to DNS, same namespace, and external (for business logic)
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            name = "kube-system"
+          }
+        }
+      }
+      ports {
+        port     = "53"
+        protocol = "UDP"
+      }
+    }
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            name = kubernetes_namespace.webapp_prod.metadata[0].name
+          }
+        }
+      }
+    }
+
+    # Allow egress to external services
+    egress {
+      to {}
+      ports {
+        port     = "443"
+        protocol = "TCP"
+      }
+    }
+
+    egress {
+      to {}
+      ports {
+        port     = "80"
+        protocol = "TCP"
+      }
+    }
+  }
+}
 
 # Tenant Compliance Module - All features disabled by default
 # Note: Module temporarily commented out due to private repo access in GitHub Actions

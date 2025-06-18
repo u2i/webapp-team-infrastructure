@@ -47,10 +47,11 @@ output "cluster_access" {
 }
 
 output "namespaces" {
-  description = "Tenant namespaces created in shared clusters"
+  description = "Tenant namespaces (managed in shared-gke/tenant-namespaces/webapp-team.tf)"
   value = {
-    nonprod = kubernetes_namespace.webapp_nonprod.metadata[0].name
-    prod    = kubernetes_namespace.webapp_prod.metadata[0].name
+    message = "Namespaces are centrally managed in the shared-gke configuration"
+    nonprod = "webapp-team"
+    prod    = "webapp-team"
   }
 }
 
