@@ -1,21 +1,56 @@
 # WebApp Team Infrastructure
 
-This repository contains the Terraform infrastructure configuration for the WebApp Team's tenant project, following ISO 27001, SOC 2 Type II, and GDPR compliance requirements.
+This repository contains the Terragrunt-based infrastructure deployment for the WebApp team across multiple environments.
 
-## 🏗️ Infrastructure Overview
+## 🏗️ Repository Structure
 
-### Components Managed
-- **Tenant Project**: `u2i-tenant-webapp` with full compliance labeling
-- **Cloud Deploy Pipeline**: Multi-environment deployment with approval gates
-- **Kubernetes Namespaces**: Team-specific namespaces on shared GKE clusters
-- **IAM & RBAC**: Scoped permissions for team access
-- **Artifact Registry**: Private container registry for team images
-- **Storage**: Deployment artifacts and compliance logging
+```
+webapp-team-infrastructure/
+├── environments/           # Environment-specific configurations
+│   ├── dev/               # Development environment
+│   ├── staging/           # Staging environment  
+│   ├── qa/                # QA environment
+│   ├── pre-prod/          # Pre-production environment
+│   └── prod/              # Production environment
+├── terragrunt.hcl         # Root Terragrunt configuration
+└── k8s-infra/             # Kubernetes manifests
+```
 
-### Compliance Features
-- **ISO 27001**: Change management and access controls
-- **SOC 2 Type II**: Audit logging and approval workflows
-- **GDPR**: EU data residency (europe-west1) and data protection
+## 🔧 Module Architecture
+
+This repository uses a three-layer module architecture:
+
+1. **Generic Modules** (`terraform-google-compliance-modules`): Reusable GCP modules
+2. **U2I Modules** (`u2i-terraform-modules`): U2I-specific wrappers with compliance policies
+3. **Environment Deployments** (this repo): Simple environment configurations
+
+## 📁 Projects
+
+- **Non-Production**: `u2i-tenant-webapp` (dev, staging, qa)
+- **Production**: `u2i-tenant-webapp-prod` (prod, pre-prod)
+
+## 🚀 Getting Started
+
+### Deploy an Environment
+
+```bash
+cd environments/dev
+terragrunt plan
+terragrunt apply
+```
+
+### Deploy All Environments
+
+```bash
+terragrunt run-all apply
+```
+
+### Destroy an Environment
+
+```bash
+cd environments/dev
+terragrunt destroy
+```
 
 ## 🔒 GitOps Workflow
 
@@ -30,57 +65,39 @@ This repository contains the Terraform infrastructure configuration for the WebA
 - **Destructive changes**: Manual Slack approval required
 - **Emergency changes**: Force apply with enhanced audit logging
 
-## 🚀 Getting Started
+## 📋 Environment Configuration
 
-### Prerequisites
-- Access to `u2i-tenant-webapp` GCP project
-- Membership in infrastructure team Slack channel
-- GitHub repository access with proper permissions
+Each environment uses the U2I webapp-base module with environment-specific overrides:
 
-### Making Infrastructure Changes
-1. Create feature branch: `git checkout -b infra/your-change`
-2. Modify Terraform files
-3. Commit and push: `git commit -am "Your change description"`
-4. Create PR to main branch
-5. Review Terraform plan in PR comments
-6. Merge PR (triggers Slack approval workflow)
-7. Approve via Slack to apply changes
+```hcl
+terraform {
+  source = "../../../u2i-terraform-modules/modules/u2i-webapp-base"
+}
 
-### Directory Structure
-```
-webapp-team-infrastructure/
-├── main.tf                    # Main Terraform configuration
-├── variables.tf               # Input variables
-├── terraform.tfvars          # Variable values
-├── outputs.tf                # Output values
-├── providers.tf              # Provider configuration
-├── clouddeploy.yaml          # Cloud Deploy pipeline config
-├── k8s-infra/                # Kubernetes infrastructure manifests
-│   ├── namespace.yaml        # Team namespace configuration
-│   ├── rbac.yaml            # Role-based access controls
-│   ├── network-policy.yaml  # Network security policies
-│   └── resource-quota.yaml  # Resource limits and quotas
-└── .github/workflows/        # GitOps automation
-    ├── terraform-plan.yml   # Plan and validation
-    └── terraform-apply.yml  # Apply with Slack approval
+inputs = {
+  enable_cloud_deploy      = true
+  enable_artifact_registry = true
+  # Environment-specific overrides
+}
 ```
 
-## 🔧 Configuration
+## 💾 State Management
 
-### Environment Variables
-- `TF_VERSION`: Terraform version (1.6.6)
-- `PROJECT_ID`: Target GCP project (u2i-tenant-webapp)
+Terraform state is stored in GCS buckets with CMEK encryption:
+- Non-Production: `u2i-tenant-webapp-tfstate`
+- Production: `u2i-tenant-webapp-prod-tfstate`
 
-### Required Secrets
-- `SLACK_BOT_TOKEN`: Slack integration for approvals
-- Workload Identity Federation handles GCP authentication
+## 🔐 Security & Compliance
 
-### Slack Integration
-- Channel: `#infrastructure-approvals`
-- Approval buttons for infrastructure changes
-- Automatic notifications on apply completion
+All deployments enforce U2I security standards:
+- ✅ CMEK encryption with 90-day rotation
+- ✅ EU-only data residency (europe-west1)
+- ✅ Compliance labels for ISO 27001, SOC 2, GDPR
+- ✅ Private GKE nodes
+- ✅ Binary authorization for production
+- ✅ Vulnerability scanning
 
-## 📋 Compliance Checklist
+## 📝 Compliance Checklist
 
 Before infrastructure changes:
 - [ ] Changes follow least privilege principle
@@ -110,3 +127,18 @@ Infrastructure changes are tracked for:
 - ISO 27001 change management requirements
 - SOC 2 Type II audit trails
 - GDPR data protection compliance
+
+## 🌟 Adding a New Environment
+
+1. Create a new directory under `environments/`
+2. Add `terragrunt.hcl` and `env.hcl`
+3. Configure environment-specific inputs
+4. Run `terragrunt init && terragrunt apply`
+
+## 📦 Dependencies
+
+- Terraform >= 1.6
+- Terragrunt >= 0.54
+- Google Cloud SDK
+- GitHub repository access
+- Slack workspace access

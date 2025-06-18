@@ -1,2 +1,4 @@
 .terraform/
 webapp-team-backup.tfstate
+.terragrunt-cache/
+.terraform.lock.hcl
