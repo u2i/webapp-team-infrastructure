@@ -6,6 +6,7 @@ on:
     paths:
       - '**.tf'
       - '**.tfvars'
+      - '**.hcl'
       - '.github/workflows/terraform-*.yml'
   # Disabled push to main to prevent lock conflicts
   # Enable manual runs for debugging
