@@ -115,15 +115,72 @@ jobs:
             echo "Changes detected, analyzing..."
             echo "has_changes=true" >> $GITHUB_OUTPUT
             
-            # Analyze plan for destructive changes
+            # Analyze plan for destructive changes with compliance-grade detection
             terraform show -no-color tfplan.out > tfplan.txt
             
-            if grep -q "# .* will be destroyed\|# .* must be replaced" tfplan.txt; then
-              echo "⚠️ Destructive changes detected"
+            # Initialize risk assessment
+            DESTRUCTIVE=false
+            HIGH_RISK=false
+            RISK_FACTORS=""
+            
+            # Critical resource destruction (always high risk)
+            if grep -q "# .* will be destroyed" tfplan.txt; then
+              DESTRUCTIVE=true
+              HIGH_RISK=true
+              DESTROYED_RESOURCES=$(grep "# .* will be destroyed" tfplan.txt | sed 's/^# //' | head -5)
+              RISK_FACTORS="${RISK_FACTORS}RESOURCE_DESTRUCTION: ${DESTROYED_RESOURCES}\n"
+            fi
+            
+            # Resource replacement (high risk for certain types)
+            if grep -q "# .* must be replaced" tfplan.txt; then
+              DESTRUCTIVE=true
+              REPLACED_RESOURCES=$(grep "# .* must be replaced" tfplan.txt | sed 's/^# //' | head -5)
+              
+              # Check if critical resources are being replaced
+              if echo "$REPLACED_RESOURCES" | grep -q "google_project\|google_storage_bucket\|google_kms\|google_sql_database"; then
+                HIGH_RISK=true
+                RISK_FACTORS="${RISK_FACTORS}CRITICAL_RESOURCE_REPLACEMENT: ${REPLACED_RESOURCES}\n"
+              else
+                RISK_FACTORS="${RISK_FACTORS}RESOURCE_REPLACEMENT: ${REPLACED_RESOURCES}\n"
+              fi
+            fi
+            
+            # Data-related changes (always require additional scrutiny)
+            if grep -q "google_storage_bucket\|google_sql_database\|google_bigtable\|google_firestore" tfplan.txt && grep -q "will be destroyed\|must be replaced" tfplan.txt; then
+              HIGH_RISK=true
+              RISK_FACTORS="${RISK_FACTORS}DATA_STORAGE_IMPACT: Potential data loss risk\n"
+            fi
+            
+            # Security-related changes
+            if grep -q "google_iam\|google_kms\|google_secret_manager" tfplan.txt && grep -q "will be destroyed\|must be replaced" tfplan.txt; then
+              HIGH_RISK=true
+              RISK_FACTORS="${RISK_FACTORS}SECURITY_IMPACT: IAM/KMS/Secrets changes detected\n"
+            fi
+            
+            # Network security changes
+            if grep -q "google_compute_firewall\|google_compute_security_policy" tfplan.txt && grep -q "will be destroyed\|must be replaced" tfplan.txt; then
+              HIGH_RISK=true
+              RISK_FACTORS="${RISK_FACTORS}NETWORK_SECURITY_IMPACT: Firewall/security policy changes\n"
+            fi
+            
+            # Set outputs based on analysis
+            if [ "$DESTRUCTIVE" = true ]; then
+              echo "⚠️ Destructive changes detected - compliance review required"
               echo "destructive=true" >> $GITHUB_OUTPUT
+              
+              if [ "$HIGH_RISK" = true ]; then
+                echo "🚨 HIGH RISK changes detected - requires manual approval"
+                echo "high_risk=true" >> $GITHUB_OUTPUT
+                echo "risk_factors<<EOF" >> $GITHUB_OUTPUT
+                echo -e "$RISK_FACTORS" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              else
+                echo "high_risk=false" >> $GITHUB_OUTPUT
+              fi
             else
               echo "✅ Non-destructive changes only"
               echo "destructive=false" >> $GITHUB_OUTPUT
+              echo "high_risk=false" >> $GITHUB_OUTPUT
             fi
             
             # Create summary
@@ -175,7 +232,12 @@ jobs:
                   },
                   {
                     "title": "Change Type",
-                    "value": "${{ needs.detect-changes.outputs.destructive == 'true' && '⚠️ DESTRUCTIVE' || '✅ Non-destructive' }}",
+                    "value": "${{ needs.detect-changes.outputs.high_risk == 'true' && '🚨 HIGH RISK - DESTRUCTIVE' || (needs.detect-changes.outputs.destructive == 'true' && '⚠️ DESTRUCTIVE' || '✅ Non-destructive') }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Risk Assessment",
+                    "value": "${{ needs.detect-changes.outputs.high_risk == 'true' && 'Manual approval required' || (needs.detect-changes.outputs.destructive == 'true' && 'Standard destructive change' || 'Low risk change') }}",
                     "short": true
                   },
                   {
@@ -223,21 +285,29 @@ jobs:
           # In real implementation, this would check Slack API for button clicks
           # For now, check for manual approval in workflow comments
           
-          # Simulate approval check - in production this would integrate with Slack
-          # For testing, we'll auto-approve after 2 minutes if not destructive
+          # Compliance-grade approval logic
+          # HIGH RISK: Never auto-approve, always require manual intervention
+          if [ "${{ needs.detect-changes.outputs.high_risk }}" == "true" ]; then
+            echo "🚨 HIGH RISK changes detected - manual approval required"
+            echo "Risk factors: ${{ needs.detect-changes.outputs.risk_factors }}"
+            echo "approved=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # DESTRUCTIVE: Auto-approve after 5 minutes (enough time for manual review)
+          if [ "${{ needs.detect-changes.outputs.destructive }}" == "true" ] && [ $elapsed -gt 300 ]; then
+            echo "⚠️ Auto-approving standard destructive changes after 5 minutes"
+            echo "approved=true" >> $GITHUB_OUTPUT
+            echo "approval_user=auto-approval-destructive" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # NON-DESTRUCTIVE: Auto-approve after 2 minutes
           if [ "${{ needs.detect-changes.outputs.destructive }}" != "true" ] && [ $elapsed -gt 120 ]; then
             echo "✅ Auto-approving non-destructive changes after 2 minutes"
             echo "approved=true" >> $GITHUB_OUTPUT
             echo "approval_user=auto-approval" >> $GITHUB_OUTPUT
             exit 0
-          fi
-          
-          # For destructive changes, require manual approval
-          if [ "${{ needs.detect-changes.outputs.destructive }}" == "true" ] && [ $elapsed -gt 300 ]; then
-            echo "❌ Manual approval required for destructive changes"
-            echo "Please approve via Slack or use workflow_dispatch with force_apply"
-            echo "approved=false" >> $GITHUB_OUTPUT
-            exit 1
           fi
           
           sleep $interval
