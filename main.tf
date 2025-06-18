@@ -245,14 +245,15 @@ resource "google_storage_bucket_iam_member" "webapp_tfstate_access" {
 
 # TEMPORARY: Grant access to shared state bucket until migration
 # This will be removed after state migration to dedicated bucket
-resource "google_storage_bucket_iam_member" "shared_tfstate_access" {
-  bucket = "u2i-tfstate"
-  role   = "roles/storage.objectUser"
-  member = "serviceAccount:${google_service_account.terraform.email}"
-
-  # WARNING: This grants access to read/write objects in the entire bucket
-  # Migration to dedicated bucket is required for proper isolation
-}
+# NOTE: This must be managed from the organization level due to permissions
+# resource "google_storage_bucket_iam_member" "shared_tfstate_access" {
+#   bucket = "u2i-tfstate"
+#   role   = "roles/storage.objectUser"
+#   member = "serviceAccount:${google_service_account.terraform.email}"
+#
+#   # WARNING: This grants access to read/write objects in the entire bucket
+#   # Migration to dedicated bucket is required for proper isolation
+# }
 
 # Artifact Registry for container images
 resource "google_artifact_registry_repository" "webapp_images" {
@@ -399,17 +400,19 @@ resource "google_storage_bucket" "deployment_artifacts" {
 }
 
 # IAM permissions for Cloud Deploy service account on shared GKE clusters
-resource "google_project_iam_member" "cloud_deploy_nonprod_access" {
-  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
-  role    = "roles/container.developer"
-  member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
-}
+# NOTE: These permissions must be granted from the organization/shared-gke level
+# The webapp project service account doesn't have permission to grant IAM on GKE projects
+# resource "google_project_iam_member" "cloud_deploy_nonprod_access" {
+#   project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-nonprod"].project_id
+#   role    = "roles/container.developer"
+#   member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
+# }
 
-resource "google_project_iam_member" "cloud_deploy_prod_access" {
-  project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
-  role    = "roles/container.developer"
-  member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
-}
+# resource "google_project_iam_member" "cloud_deploy_prod_access" {
+#   project = data.terraform_remote_state.shared_gke.outputs.projects_created["u2i-gke-prod"].project_id
+#   role    = "roles/container.developer"
+#   member  = "serviceAccount:${google_service_account.cloud_deploy_sa.email}"
+# }
 
 # IAM permissions for Cloud Deploy service account on tenant project
 resource "google_project_iam_member" "cloud_deploy_tenant_permissions" {
