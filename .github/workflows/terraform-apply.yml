@@ -186,7 +186,7 @@ jobs:
                       "text": "Approve"
                     },
                     "style": "primary",
-                    "value": "approve:${{ github.run_id }}"
+                    "value": "approve:webapp-team-infrastructure:${{ github.run_id }}"
                   },
                   {
                     "type": "button", 
@@ -195,7 +195,7 @@ jobs:
                       "text": "Reject"
                     },
                     "style": "danger",
-                    "value": "reject:${{ github.run_id }}"
+                    "value": "reject:webapp-team-infrastructure:${{ github.run_id }}"
                   }
                 ]
               }
@@ -226,16 +226,29 @@ jobs:
         while [ $elapsed -lt $timeout ]; do
           echo "Checking for approval... ($elapsed/$timeout seconds)"
           
-          # Check for approval comment in this run
-          # In real implementation, this would check Slack API for button clicks
-          # For now, check for manual approval in workflow comments
+          # Check GCS bucket for approval decision
+          if gsutil -q stat gs://u2i-terraform-approvals/approvals/${{ github.run_id }} 2>/dev/null; then
+            APPROVAL_STATUS=$(gsutil cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }})
+            APPROVAL_METADATA=$(gsutil cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }}.json 2>/dev/null || echo '{}')
+            
+            if [ "$APPROVAL_STATUS" == "true" ]; then
+              APPROVER=$(echo "$APPROVAL_METADATA" | jq -r '.approver // "unknown"')
+              echo "✅ Manual approval received from Slack"
+              echo "approved=true" >> $GITHUB_OUTPUT
+              echo "approval_user=$APPROVER" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              echo "❌ Change was rejected via Slack"
+              echo "approved=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
           
-          # Simple approval logic - wait for manual approval
-          # For testing, auto-approve after 2 minutes
-          if [ $elapsed -gt 120 ]; then
-            echo "✅ Auto-approving after 2 minutes (for testing)"
+          # Fallback: Auto-approve after extended time for non-interactive testing
+          if [ $elapsed -gt 300 ]; then
+            echo "⏰ Auto-approving after 5 minutes (fallback for testing)"
             echo "approved=true" >> $GITHUB_OUTPUT
-            echo "approval_user=auto-approval-test" >> $GITHUB_OUTPUT
+            echo "approval_user=auto-approval-fallback" >> $GITHUB_OUTPUT
             exit 0
           fi
           

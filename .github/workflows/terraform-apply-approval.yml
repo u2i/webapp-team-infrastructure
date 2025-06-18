@@ -1,0 +1,99 @@
+name: Process Terraform Apply Approval
+
+on:
+  workflow_dispatch:
+    inputs:
+      original_run_id:
+        description: 'Original workflow run ID that requested approval'
+        required: true
+        type: string
+      approved:
+        description: 'Whether the change was approved'
+        required: true
+        type: string
+      approver:
+        description: 'Who approved the change'
+        required: true
+        type: string
+      approver_id:
+        description: 'Slack ID of approver'
+        required: true
+        type: string
+      timestamp:
+        description: 'When the approval was given'
+        required: true
+        type: string
+
+jobs:
+  process-approval:
+    name: Process Approval Decision
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Log approval decision
+      run: |
+        echo "🔔 Approval decision received"
+        echo "Original Run ID: ${{ github.event.inputs.original_run_id }}"
+        echo "Approved: ${{ github.event.inputs.approved }}"
+        echo "Approver: ${{ github.event.inputs.approver }}"
+        echo "Timestamp: ${{ github.event.inputs.timestamp }}"
+        
+    - name: Create approval signal file
+      run: |
+        # Create a signal file that the main workflow can check
+        mkdir -p /tmp/approvals
+        
+        if [ "${{ github.event.inputs.approved }}" == "true" ]; then
+          echo "approved" > /tmp/approvals/${{ github.event.inputs.original_run_id }}
+          echo "✅ Approval signal created"
+        else
+          echo "rejected" > /tmp/approvals/${{ github.event.inputs.original_run_id }}
+          echo "❌ Rejection signal created"
+        fi
+        
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+        
+    - name: Store approval decision
+      run: |
+        # Store the approval decision in GCS for the main workflow to check
+        BUCKET_NAME="u2i-terraform-approvals"
+        
+        # Create bucket if it doesn't exist
+        gsutil mb gs://$BUCKET_NAME 2>/dev/null || true
+        
+        # Store approval decision
+        echo "${{ github.event.inputs.approved }}" | gsutil cp - gs://$BUCKET_NAME/approvals/${{ github.event.inputs.original_run_id }}
+        
+        # Store approval metadata
+        cat << EOF | gsutil cp - gs://$BUCKET_NAME/approvals/${{ github.event.inputs.original_run_id }}.json
+        {
+          "approved": ${{ github.event.inputs.approved }},
+          "approver": "${{ github.event.inputs.approver }}",
+          "approver_id": "${{ github.event.inputs.approver_id }}",
+          "timestamp": "${{ github.event.inputs.timestamp }}",
+          "original_run_id": "${{ github.event.inputs.original_run_id }}"
+        }
+        EOF
+        
+        echo "📝 Approval decision stored in GCS"
+        
+    - name: Create audit log
+      run: |
+        gcloud logging write "infrastructure-approvals" \
+          "{
+            \"message\": \"Infrastructure change approval decision\",
+            \"event_type\": \"approval_decision\",
+            \"original_run_id\": \"${{ github.event.inputs.original_run_id }}\",
+            \"approved\": ${{ github.event.inputs.approved }},
+            \"approver\": \"${{ github.event.inputs.approver }}\",
+            \"approver_id\": \"${{ github.event.inputs.approver_id }}\",
+            \"timestamp\": \"${{ github.event.inputs.timestamp }}\",
+            \"project\": \"webapp-team-infrastructure\",
+            \"compliance_framework\": \"iso27001-soc2-gdpr\"
+          }" \
+          --severity=NOTICE \
+          --project=${{ vars.PROJECT_ID }}
