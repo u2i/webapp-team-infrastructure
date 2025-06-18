@@ -146,51 +146,56 @@ jobs:
         channel-id: ${{ vars.SLACK_INFRASTRUCTURE_CHANNEL }}
         payload: |
           {
-            "text": "🏗️ Infrastructure Change Approval Required",
-            "attachments": [
+            "text": "Infrastructure Change Approval Required",
+            "blocks": [
               {
-                "color": "warning",
-                "title": "WebApp Team Infrastructure Change",
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*WebApp Team Infrastructure Change*\n\n:warning: Approval required for infrastructure changes"
+                }
+              },
+              {
+                "type": "section",
                 "fields": [
                   {
-                    "title": "Repository",
-                    "value": "${{ github.repository }}",
-                    "short": true
+                    "type": "mrkdwn",
+                    "text": "*Repository:*\n${{ github.repository }}"
                   },
                   {
-                    "title": "Actor", 
-                    "value": "${{ github.actor }}",
-                    "short": true
+                    "type": "mrkdwn", 
+                    "text": "*Actor:*\n${{ github.actor }}"
                   },
                   {
-                    "title": "Reason",
-                    "value": "${{ github.event.inputs.reason || 'Terraform changes pushed to main branch' }}",
-                    "short": false
+                    "type": "mrkdwn",
+                    "text": "*Run ID:*\n${{ github.run_id }}"
                   },
                   {
-                    "title": "Change Type",
-                    "value": "Infrastructure Change",
-                    "short": true
-                  },
-                  {
-                    "title": "Workflow",
-                    "value": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>",
-                    "short": true
+                    "type": "mrkdwn",
+                    "text": "*Change Type:*\nInfrastructure Change"
                   }
-                ],
-                "text": "```${{ needs.detect-changes.outputs.plan_summary }}```",
-                "actions": [
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
                   {
                     "type": "button",
-                    "text": "✅ Approve Infrastructure Changes",
-                    "style": "primary", 
-                    "value": "approve:terraform:${{ github.run_id }}"
+                    "text": {
+                      "type": "plain_text",
+                      "text": "Approve"
+                    },
+                    "style": "primary",
+                    "value": "approve:${{ github.run_id }}"
                   },
                   {
-                    "type": "button",
-                    "text": "❌ Reject Changes",
+                    "type": "button", 
+                    "text": {
+                      "type": "plain_text",
+                      "text": "Reject"
+                    },
                     "style": "danger",
-                    "value": "reject:terraform:${{ github.run_id }}"
+                    "value": "reject:${{ github.run_id }}"
                   }
                 ]
               }
