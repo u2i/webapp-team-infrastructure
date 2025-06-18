@@ -131,3 +131,14 @@ output "state_migration_instructions" {
     ]
   }
 }
+
+output "compliance_status" {
+  description = "Current compliance framework status"
+  value = {
+    frameworks = ["iso27001", "soc2", "gdpr"]
+    data_residency = "europe-west1"
+    encryption = "CMEK with 90-day rotation"
+    audit_logging = "Enabled with 30-day retention"
+    access_control = "Project-local service accounts with least privilege"
+  }
+}
