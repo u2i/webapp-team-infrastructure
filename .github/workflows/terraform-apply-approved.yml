@@ -1,4 +1,4 @@
-name: Terraform Apply After Approval
+name: Terragrunt Apply After Approval
 
 on:
   repository_dispatch:
@@ -6,6 +6,7 @@ on:
 
 env:
   TF_VERSION: '1.6.6'
+  TERRAGRUNT_VERSION: '0.54.0'
   TF_IN_AUTOMATION: true
   TF_INPUT: false
 
@@ -40,18 +41,31 @@ jobs:
         terraform_version: ${{ env.TF_VERSION }}
         terraform_wrapper: false
     
+    - name: Setup Terragrunt
+      run: |
+        wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+        chmod +x terragrunt_linux_amd64
+        sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+    
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
+    - name: Parse approval metadata
+      id: parse
+      run: |
+        # Extract environments from run ID or metadata
+        # For now, assume prod and pre-prod need approval
+        echo "environments=[\"prod\", \"pre-prod\"]" >> $GITHUB_OUTPUT
+    
     - name: Create approval audit log
       run: |
         gcloud logging write "webapp-team-infrastructure" \
           "{
             \"message\": \"INFRASTRUCTURE APPLY APPROVED VIA SLACK\",
-            \"event_type\": \"terraform_apply_approved\",
+            \"event_type\": \"terragrunt_apply_approved\",
             \"repository\": \"${{ github.repository }}\",
             \"original_run_id\": \"${{ github.event.client_payload.run_id }}\",
             \"approver\": \"${{ github.event.client_payload.approver }}\",
@@ -59,30 +73,35 @@ jobs:
             \"compliance_framework\": \"iso27001-soc2-gdpr\"
           }" \
           --severity=NOTICE \
-          --project=${{ vars.PROJECT_ID }}
+          --project=u2i-tenant-webapp-prod
     
-    - name: Terraform Init
-      run: terraform init
-    
-    - name: Terraform Apply
+    - name: Apply approved environments
       run: |
-        echo "🚀 Applying approved infrastructure changes..."
-        terraform apply -auto-approve
-        echo "✅ Infrastructure changes applied successfully"
+        echo "🚀 Applying approved production environments..."
+        
+        for env in prod pre-prod; do
+          echo "Applying $env environment..."
+          cd environments/$env
+          terragrunt init
+          terragrunt apply -auto-approve
+          cd ../..
+        done
+        
+        echo "✅ All production environments applied successfully"
     
     - name: Create completion audit log
       run: |
         gcloud logging write "webapp-team-infrastructure" \
           "{
             \"message\": \"INFRASTRUCTURE APPLY COMPLETED\",
-            \"event_type\": \"terraform_apply_success\",
+            \"event_type\": \"terragrunt_apply_success\",
             \"repository\": \"${{ github.repository }}\",
             \"original_run_id\": \"${{ github.event.client_payload.run_id }}\",
             \"approver\": \"${{ github.event.client_payload.approver }}\",
             \"compliance_framework\": \"iso27001-soc2-gdpr\"
           }" \
           --severity=NOTICE \
-          --project=${{ vars.PROJECT_ID }}
+          --project=u2i-tenant-webapp-prod
 
   handle-rejection:
     name: Handle Rejected Changes
