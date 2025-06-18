@@ -142,5 +142,6 @@ output "compliance_status" {
     access_control = "Project-local service accounts with least privilege"
     workflow_enabled = "automatic"
     workflow_fixed = "true"
+    slack_test = "enabled"
   }
 }
