@@ -1,11 +1,12 @@
 name: Terraform Apply with Slack Approval
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '**.tf'
-      - '**.tfvars'
+  # Disabled automatic runs to prevent lock conflicts
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - '**.tf'
+  #     - '**.tfvars'
   workflow_dispatch:
     inputs:
       force_apply:
