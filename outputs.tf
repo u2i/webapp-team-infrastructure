@@ -144,5 +144,6 @@ output "compliance_status" {
     workflow_fixed   = "true"
     slack_test       = "enabled"
     workflow_run     = "test-5-centralized-approval"
+    slack_test_v2    = "testing-approval-workflow"
   }
 }
