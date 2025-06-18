@@ -24,6 +24,11 @@ inputs = {
   # Disable binary authorization for dev
   enable_binary_authorization = false
   
+  # Test label for Slack approval workflow
+  common_tags = {
+    test_approval = "slack-workflow-test"
+  }
+  
   # Override any dev-specific values here
   # For example, you might want smaller resource sizes in dev
 }
