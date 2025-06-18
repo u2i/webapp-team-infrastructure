@@ -16,10 +16,8 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "u2i-tfstate"
-    prefix = "tenant-webapp-team"
-    # TODO: Migrate to dedicated bucket after creation
-    # Future: bucket = "u2i-tenant-webapp-tfstate"
+    bucket = "u2i-tenant-webapp-tfstate"
+    prefix = "terraform/state"
   }
 }
 
