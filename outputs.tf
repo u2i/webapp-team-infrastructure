@@ -140,5 +140,6 @@ output "compliance_status" {
     encryption     = "CMEK with 90-day rotation"
     audit_logging  = "Enabled with 30-day retention"
     access_control = "Project-local service accounts with least privilege"
+    workflow_enabled = "automatic"
   }
 }
