@@ -55,7 +55,10 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
-    # Skip gcloud SDK setup - just use the authenticated credentials from previous step
+    - name: Set up gcloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        version: 'latest'
     
     - name: Security and Compliance Checks
       run: |
@@ -216,58 +219,25 @@ jobs:
         fi
         
         echo "⏳ Waiting for Slack approval..."
-        echo "Approval required for infrastructure changes"
-        echo "Workflow run: ${{ github.run_id }}"
+        echo "✅ Approval request sent to Slack"
+        echo "📱 Please check the #infrastructure-approvals channel"
+        echo "🔗 Workflow run ID: ${{ github.run_id }}"
+        echo ""
+        echo "The approval will trigger a new workflow when received."
+        echo "This workflow will now complete. Check the Actions tab for the approval workflow."
         
-        timeout=3600  # 1 hour timeout for infrastructure changes
-        interval=30   # Check every 30 seconds
-        elapsed=0
-        
-        while [ $elapsed -lt $timeout ]; do
-          echo "Checking for approval... ($elapsed/$timeout seconds)"
-          
-          # Check GCS bucket for approval decision (managed by shared infrastructure)
-          if gcloud storage ls gs://u2i-terraform-approvals/approvals/${{ github.run_id }} >/dev/null 2>&1; then
-            APPROVAL_STATUS=$(gcloud storage cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }})
-            APPROVAL_METADATA=$(gcloud storage cat gs://u2i-terraform-approvals/approvals/${{ github.run_id }}.json 2>/dev/null || echo '{}')
-            
-            if [ "$APPROVAL_STATUS" == "true" ]; then
-              APPROVER=$(echo "$APPROVAL_METADATA" | jq -r '.approver // "unknown"')
-              echo "✅ Manual approval received from Slack"
-              echo "approved=true" >> $GITHUB_OUTPUT
-              echo "approval_user=$APPROVER" >> $GITHUB_OUTPUT
-              exit 0
-            else
-              echo "❌ Change was rejected via Slack"
-              echo "approved=false" >> $GITHUB_OUTPUT
-              exit 1
-            fi
-          fi
-          
-          # Fallback: Auto-approve after extended time for non-interactive testing
-          if [ $elapsed -gt 300 ]; then
-            echo "⏰ Auto-approving after 5 minutes (fallback for testing)"
-            echo "approved=true" >> $GITHUB_OUTPUT
-            echo "approval_user=auto-approval-fallback" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          sleep $interval
-          elapsed=$((elapsed + interval))
-        done
-        
-        echo "❌ Approval timeout reached"
-        echo "approved=false" >> $GITHUB_OUTPUT
-        exit 1
+        # Mark as pending - the actual apply will happen in a separate workflow
+        echo "approved=pending" >> $GITHUB_OUTPUT
+        echo "approval_user=pending" >> $GITHUB_OUTPUT
 
   terraform-apply:
-    name: Apply Infrastructure Changes
+    name: Apply Infrastructure Changes (Force Apply Only)
     runs-on: ubuntu-latest
     needs: [detect-changes, slack-approval]
     if: |
       always() && 
       needs.detect-changes.outputs.has_changes == 'true' && 
-      (needs.slack-approval.outputs.approved == 'true' || github.event.inputs.force_apply == 'true')
+      github.event.inputs.force_apply == 'true'
     
     environment:
       name: infrastructure
@@ -293,7 +263,10 @@ jobs:
         workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
     
-    # Skip gcloud SDK setup - just use the authenticated credentials from previous step
+    - name: Set up gcloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        version: 'latest'
     
     - name: Final Security and Compliance Checks
       run: |

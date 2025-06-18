@@ -1,0 +1,98 @@
+name: Terraform Apply After Approval
+
+on:
+  repository_dispatch:
+    types: [slack-approval-received]
+
+env:
+  TF_VERSION: '1.6.6'
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  apply-approved-changes:
+    name: Apply Approved Infrastructure Changes
+    runs-on: ubuntu-latest
+    if: github.event.client_payload.approved == true
+    
+    environment:
+      name: infrastructure
+      url: https://console.cloud.google.com/home/dashboard?project=${{ vars.PROJECT_ID }}
+    
+    permissions:
+      contents: read
+      id-token: write
+    
+    steps:
+    - name: Log approval details
+      run: |
+        echo "🎉 Approval received!"
+        echo "Run ID: ${{ github.event.client_payload.run_id }}"
+        echo "Approved by: ${{ github.event.client_payload.approver }}"
+        echo "Approval time: ${{ github.event.client_payload.timestamp }}"
+    
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+        terraform_wrapper: false
+    
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
+    
+    - name: Create approval audit log
+      run: |
+        gcloud logging write "webapp-team-infrastructure" \
+          "{
+            \"message\": \"INFRASTRUCTURE APPLY APPROVED VIA SLACK\",
+            \"event_type\": \"terraform_apply_approved\",
+            \"repository\": \"${{ github.repository }}\",
+            \"original_run_id\": \"${{ github.event.client_payload.run_id }}\",
+            \"approver\": \"${{ github.event.client_payload.approver }}\",
+            \"approval_time\": \"${{ github.event.client_payload.timestamp }}\",
+            \"compliance_framework\": \"iso27001-soc2-gdpr\"
+          }" \
+          --severity=NOTICE \
+          --project=${{ vars.PROJECT_ID }}
+    
+    - name: Terraform Init
+      run: terraform init
+    
+    - name: Terraform Apply
+      run: |
+        echo "🚀 Applying approved infrastructure changes..."
+        terraform apply -auto-approve
+        echo "✅ Infrastructure changes applied successfully"
+    
+    - name: Create completion audit log
+      run: |
+        gcloud logging write "webapp-team-infrastructure" \
+          "{
+            \"message\": \"INFRASTRUCTURE APPLY COMPLETED\",
+            \"event_type\": \"terraform_apply_success\",
+            \"repository\": \"${{ github.repository }}\",
+            \"original_run_id\": \"${{ github.event.client_payload.run_id }}\",
+            \"approver\": \"${{ github.event.client_payload.approver }}\",
+            \"compliance_framework\": \"iso27001-soc2-gdpr\"
+          }" \
+          --severity=NOTICE \
+          --project=${{ vars.PROJECT_ID }}
+
+  handle-rejection:
+    name: Handle Rejected Changes
+    runs-on: ubuntu-latest
+    if: github.event.client_payload.approved == false
+    
+    steps:
+    - name: Log rejection details
+      run: |
+        echo "❌ Changes were rejected"
+        echo "Run ID: ${{ github.event.client_payload.run_id }}"
+        echo "Rejected by: ${{ github.event.client_payload.approver }}"
+        echo "Rejection time: ${{ github.event.client_payload.timestamp }}"
