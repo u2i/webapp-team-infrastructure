@@ -4,7 +4,7 @@ include "root" {
 }
 
 terraform {
-  source = "git::https://github.com/u2i/u2i-terraform-modules.git//webapp-project?ref=v1.3.0"
+  source = "git::https://github.com/u2i/u2i-terraform-modules.git//webapp-project?ref=v1.4.0"
 }
 
 inputs = {
