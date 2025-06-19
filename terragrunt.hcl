@@ -2,11 +2,20 @@
 
 locals {
   # Parse environment from path
-  environment_vars = read_terragrunt_config(find_in_parent_folders("env.hcl", "env.hcl"))
-  environment      = local.environment_vars.locals.environment
+  path_parts = split("/", path_relative_to_include())
   
-  # Determine project based on environment
-  project_id = contains(["prod", "pre-prod"], local.environment) ? "u2i-tenant-webapp-prod" : "u2i-tenant-webapp"
+  # Determine project and environment from path
+  # Can be either:
+  # - projects/{project}/terragrunt.hcl (project-level)
+  # - projects/{project}/environments/{environment}/terragrunt.hcl (env-level)
+  project_context = length(local.path_parts) >= 2 ? local.path_parts[1] : ""
+  environment     = length(local.path_parts) >= 4 ? local.path_parts[3] : local.project_context
+  
+  # Map project context to actual GCP project ID
+  project_id = local.project_context == "prod" ? "u2i-tenant-webapp-prod" : "u2i-tenant-webapp"
+  
+  # Determine domain based on project
+  domain = local.project_context == "prod" ? "u2i.com" : "u2i.dev"
   
   # Common tags for all resources
   common_tags = {
@@ -15,12 +24,15 @@ locals {
     repository     = "webapp-team-infrastructure"
     compliance     = "iso27001-soc2-gdpr"
     data_residency = "eu"
-    region         = "belgium"
-    gdpr_compliant = "true"
+    environment    = local.environment
+    project        = local.project_context
   }
   
   # Backend bucket based on project
-  backend_bucket = contains(["prod", "pre-prod"], local.environment) ? "u2i-tenant-webapp-prod-tfstate" : "u2i-tenant-webapp-tfstate"
+  backend_bucket = local.project_context == "prod" ? "u2i-tenant-webapp-prod-tfstate" : "u2i-tenant-webapp-tfstate"
+  
+  # State key based on path depth
+  state_key = length(local.path_parts) == 2 ? "project" : join("/", slice(local.path_parts, 2, length(local.path_parts)))
 }
 
 # Configure Terraform
@@ -31,13 +43,9 @@ terraform {
     env_vars = {
       TF_VAR_project_id   = local.project_id
       TF_VAR_environment  = local.environment
+      TF_VAR_domain       = local.domain
       TF_VAR_common_tags  = jsonencode(local.common_tags)
     }
-  }
-  
-  extra_arguments "auto_approve" {
-    commands = ["apply"]
-    arguments = ["-auto-approve"]
   }
 }
 
@@ -52,7 +60,7 @@ remote_state {
   
   config = {
     bucket   = local.backend_bucket
-    prefix   = "terraform/${local.environment}"
+    prefix   = "terragrunt/${local.state_key}"
     project  = local.project_id
     location = "europe-west1"
     
@@ -63,20 +71,10 @@ remote_state {
 
 # Generate common provider configuration
 generate "provider" {
-  path      = "provider.tf"
+  path      = "providers.tf"
   if_exists = "overwrite"
   
   contents = <<EOF
-terraform {
-  required_version = ">= 1.6"
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = ">= 5.0"
-    }
-  }
-}
-
 provider "google" {
   user_project_override = true
   billing_project       = var.project_id
@@ -93,7 +91,8 @@ EOF
 
 # Common inputs for all environments
 inputs = {
-  primary_region = "europe-west1"
-  billing_account = "01AA86-A09BB4-30E84E"
-  github_repo = "u2i/webapp-team-infrastructure"
+  primary_region  = "europe-west1"
+  billing_account = "017E25-21F01C-DF5C27"
+  github_org      = "u2i"
+  github_repo     = "webapp-team-infrastructure"
 }

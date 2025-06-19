@@ -1,62 +1,104 @@
 # WebApp Team Infrastructure
 
-This repository contains the Terragrunt-based infrastructure deployment for the WebApp team across multiple environments.
+This repository manages the infrastructure for the WebApp team using Terragrunt and Terraform.
 
 ## 🏗️ Repository Structure
 
 ```
 webapp-team-infrastructure/
-├── environments/           # Environment-specific configurations
-│   ├── dev/               # Development environment
-│   ├── staging/           # Staging environment  
-│   ├── qa/                # QA environment
-│   ├── pre-prod/          # Pre-production environment
-│   └── prod/              # Production environment
-├── terragrunt.hcl         # Root Terragrunt configuration
-└── k8s-infra/             # Kubernetes manifests
+├── projects/
+│   ├── non-prod/                    # Non-production GCP project
+│   │   ├── main.tf                  # Project-level resources
+│   │   ├── dns.tf                   # DNS zone for *.u2i.dev
+│   │   └── environments/
+│   │       ├── dev/                 # Development environment
+│   │       ├── staging/             # Staging environment
+│   │       └── qa/                  # QA environment
+│   └── prod/                        # Production GCP project
+│       ├── main.tf                  # Project-level resources
+│       ├── dns.tf                   # DNS zone for *.u2i.com
+│       └── environments/
+│           ├── pre-prod/            # Pre-production environment
+│           └── prod/                # Production environment
+└── terragrunt.hcl                   # Root Terragrunt configuration
 ```
 
-## 🔧 Module Architecture
+## 🔧 Architecture
 
-This repository uses a three-layer module architecture:
+### Project Separation
 
-1. **Generic Modules** (`terraform-google-compliance-modules`): Reusable GCP modules
-2. **U2I Modules** (`u2i-terraform-modules`): U2I-specific wrappers with compliance policies
-3. **Environment Deployments** (this repo): Simple environment configurations
+- **Non-prod project** (`u2i-tenant-webapp`): Contains dev, staging, and QA environments
+- **Prod project** (`u2i-tenant-webapp-prod`): Contains pre-prod and prod environments
 
-## 📁 Projects
+### DNS Strategy
 
-- **Non-Production**: `u2i-tenant-webapp` (dev, staging, qa)
-- **Production**: `u2i-tenant-webapp-prod` (prod, pre-prod)
+- Non-prod uses `*.u2i.dev` domain
+- Prod uses `*.u2i.com` domain
 
-## 🚀 Getting Started
+### Module Architecture
 
-### Deploy an Environment
+This repository uses a modular approach:
+1. **Project-level resources**: Managed with plain Terraform in `projects/{project}/`
+2. **Environment resources**: Managed with Terragrunt, using modules from `u2i-terraform-modules`
+
+## 🚀 Deploying Infrastructure
+
+### Project-level resources
+
+Project-level resources (DNS zones, WIF pools, service accounts) are managed with plain Terraform:
 
 ```bash
-cd environments/dev
-terragrunt plan
+# Non-prod project resources
+cd projects/non-prod
+terraform init
+terraform plan
+terraform apply
+
+# Prod project resources
+cd projects/prod
+terraform init
+terraform plan
+terraform apply
+```
+
+### Environment-specific resources
+
+Environment-specific resources are managed with Terragrunt:
+
+```bash
+# Deploy dev environment
+cd projects/non-prod/environments/dev
+terragrunt apply
+
+# Deploy production environment
+cd projects/prod/environments/prod
 terragrunt apply
 ```
 
-### Deploy All Environments
+### Deploy all environments
 
 ```bash
+# Deploy all non-prod environments
+cd projects/non-prod/environments
+terragrunt run-all apply
+
+# Deploy all prod environments
+cd projects/prod/environments
 terragrunt run-all apply
 ```
 
-### Destroy an Environment
+## 💾 State Management
 
-```bash
-cd environments/dev
-terragrunt destroy
-```
+- **Non-prod state**: `gs://u2i-tenant-webapp-tfstate`
+- **Prod state**: `gs://u2i-tenant-webapp-prod-tfstate`
+
+Terragrunt automatically manages state paths based on the environment.
 
 ## 🔒 GitOps Workflow
 
 ### Infrastructure Changes Process
 1. **Pull Request** → Terraform plan generated and validated
-2. **Slack Approval** → Infrastructure team approval required
+2. **Slack Approval** → Infrastructure team approval required for project-level changes
 3. **Terraform Apply** → Changes applied with full audit trail
 4. **Verification** → Post-apply health checks
 
@@ -64,28 +106,6 @@ terragrunt destroy
 - **Non-destructive changes**: Auto-approved after 2 minutes
 - **Destructive changes**: Manual Slack approval required
 - **Emergency changes**: Force apply with enhanced audit logging
-
-## 📋 Environment Configuration
-
-Each environment uses the U2I webapp-base module with environment-specific overrides:
-
-```hcl
-terraform {
-  source = "../../../u2i-terraform-modules/modules/u2i-webapp-base"
-}
-
-inputs = {
-  enable_cloud_deploy      = true
-  enable_artifact_registry = true
-  # Environment-specific overrides
-}
-```
-
-## 💾 State Management
-
-Terraform state is stored in GCS buckets with CMEK encryption:
-- Non-Production: `u2i-tenant-webapp-tfstate`
-- Production: `u2i-tenant-webapp-prod-tfstate`
 
 ## 🔐 Security & Compliance
 
@@ -97,15 +117,21 @@ All deployments enforce U2I security standards:
 - ✅ Binary authorization for production
 - ✅ Vulnerability scanning
 
-## 📝 Compliance Checklist
+## 📋 Environment Configuration
 
-Before infrastructure changes:
-- [ ] Changes follow least privilege principle
-- [ ] EU data residency maintained (europe-west1)
-- [ ] Proper resource labeling for compliance
-- [ ] Security policies not weakened
-- [ ] Audit logging maintained
-- [ ] Change has business justification
+Each environment's `terragrunt.hcl` references the webapp-infrastructure module:
+
+```hcl
+terraform {
+  source = "git::https://github.com/u2i/u2i-terraform-modules.git//modules/webapp-infrastructure?ref=main"
+}
+
+inputs = {
+  environment = "dev"
+  gke_node_count = 1
+  # Environment-specific overrides
+}
+```
 
 ## 🆘 Support
 
@@ -114,31 +140,9 @@ Before infrastructure changes:
 - **Compliance Questions**: `compliance@u2i.com`
 - **Platform Support**: `platform-team@u2i.com`
 
-## 🔍 Monitoring & Audit
-
-### Audit Logs
-All infrastructure changes are logged to:
-- **GCP Cloud Logging**: `webapp-team-infrastructure` log stream
-- **GitHub Actions**: Complete workflow execution history
-- **Slack**: Approval and notification history
-
-### Compliance Reporting
-Infrastructure changes are tracked for:
-- ISO 27001 change management requirements
-- SOC 2 Type II audit trails
-- GDPR data protection compliance
-
-## 🌟 Adding a New Environment
-
-1. Create a new directory under `environments/`
-2. Add `terragrunt.hcl` and `env.hcl`
-3. Configure environment-specific inputs
-4. Run `terragrunt init && terragrunt apply`
-
 ## 📦 Dependencies
 
 - Terraform >= 1.6
 - Terragrunt >= 0.54
 - Google Cloud SDK
 - GitHub repository access
-- Slack workspace access
