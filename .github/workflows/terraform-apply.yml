@@ -55,8 +55,8 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: 'projects/583426361694/locations/global/workloadIdentityPools/github-actions-pool/providers/github'
-        service_account: 'github-actions@u2i-tenant-webapp.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
         token_format: 'access_token'
     
     - name: Set up gcloud SDK
@@ -252,8 +252,8 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v2
       with:
-        workload_identity_provider: 'projects/583426361694/locations/global/workloadIdentityPools/github-actions-pool/providers/github'
-        service_account: 'github-actions@u2i-tenant-webapp.iam.gserviceaccount.com'
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TERRAFORM_SERVICE_ACCOUNT }}
         token_format: 'access_token'
     
     - name: Terraform Init
