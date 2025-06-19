@@ -1,15 +1,27 @@
 # DNS configuration for webapp team
 
 locals {
-  dns_zone_name    = data.terraform_remote_state.organization.outputs.dns_zone_info.zone_name
-  dns_zone_project = data.terraform_remote_state.organization.outputs.dns_zone_info.project_id
-  root_domain      = trimsuffix(data.terraform_remote_state.organization.outputs.dns_zone_info.dns_name, ".")
+  root_domain = trimsuffix(data.terraform_remote_state.organization.outputs.dns_zone_info.dns_name, ".")
+}
+
+# Create a DNS zone for webapp subdomain in this project
+resource "google_dns_managed_zone" "webapp" {
+  project     = google_project.tenant_app.project_id
+  name        = "webapp-zone"
+  dns_name    = "webapp.${local.root_domain}."
+  description = "DNS zone for webapp team subdomain"
+
+  labels = {
+    compliance     = "iso27001-soc2-gdpr"
+    data_residency = "eu"
+    managed_by     = "terraform"
+  }
 }
 
 # DNS record for the main webapp
 resource "google_dns_record_set" "webapp" {
-  project      = local.dns_zone_project
-  managed_zone = local.dns_zone_name
+  project      = google_project.tenant_app.project_id
+  managed_zone = google_dns_managed_zone.webapp.name
   name         = "webapp.${local.root_domain}."
   type         = "A"
   ttl          = 300
@@ -22,8 +34,8 @@ resource "google_dns_record_set" "webapp" {
 resource "google_dns_record_set" "environment_records" {
   for_each = toset(["dev", "staging", "qa", "pre-prod", "prod"])
   
-  project      = local.dns_zone_project
-  managed_zone = local.dns_zone_name
+  project      = google_project.tenant_app.project_id
+  managed_zone = google_dns_managed_zone.webapp.name
   name         = "${each.key}.webapp.${local.root_domain}."
   type         = "A"
   ttl          = 300
@@ -34,8 +46,8 @@ resource "google_dns_record_set" "environment_records" {
 
 # CNAME for www subdomain
 resource "google_dns_record_set" "www_webapp" {
-  project      = local.dns_zone_project
-  managed_zone = local.dns_zone_name
+  project      = google_project.tenant_app.project_id
+  managed_zone = google_dns_managed_zone.webapp.name
   name         = "www.webapp.${local.root_domain}."
   type         = "CNAME"
   ttl          = 300
@@ -52,5 +64,15 @@ output "dns_records" {
       for env, record in google_dns_record_set.environment_records : 
       env => record.name
     }
+  }
+}
+
+# Output NS records that need to be added to parent zone
+output "dns_delegation" {
+  description = "NS records to add to the parent DNS zone for delegation"
+  value = {
+    zone_name   = google_dns_managed_zone.webapp.dns_name
+    nameservers = google_dns_managed_zone.webapp.name_servers
+    instructions = "Add these NS records to the parent zone (${local.root_domain}) to delegate webapp.${local.root_domain} to this project"
   }
 }

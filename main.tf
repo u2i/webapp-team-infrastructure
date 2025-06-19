@@ -71,7 +71,8 @@ resource "google_project_service" "tenant_apis" {
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "iam.googleapis.com",
-    "iamcredentials.googleapis.com"
+    "iamcredentials.googleapis.com",
+    "dns.googleapis.com"                   # Cloud DNS
   ])
 
   project = google_project.tenant_app.project_id
