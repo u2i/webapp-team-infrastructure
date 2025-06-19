@@ -130,15 +130,22 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
 
-  # Only allow our specific repository
-  attribute_condition = "assertion.repository == 'u2i/webapp-team-infrastructure'"
+  # Only allow our specific repositories
+  attribute_condition = "assertion.repository == 'u2i/webapp-team-infrastructure' || assertion.repository == 'u2i/webapp-team-app'"
 }
 
-# Allow GitHub Actions to impersonate terraform SA
+# Allow GitHub Actions to impersonate terraform SA from infrastructure repo
 resource "google_service_account_iam_member" "github_terraform_impersonation" {
   service_account_id = google_service_account.terraform.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/u2i/webapp-team-infrastructure"
+}
+
+# Allow GitHub Actions to impersonate cloud deploy SA from app repo
+resource "google_service_account_iam_member" "github_app_impersonation" {
+  service_account_id = google_service_account.cloud_deploy_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/u2i/webapp-team-app"
 }
 
 # Enable Cloud KMS API for CMEK

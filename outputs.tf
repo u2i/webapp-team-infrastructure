@@ -77,8 +77,9 @@ output "namespaces" {
 output "github_actions_config" {
   description = "Configuration for GitHub Actions workflows"
   value = {
-    workload_identity_provider = "${google_iam_workload_identity_pool.github.name}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
+    workload_identity_provider = "projects/${google_project.tenant_app.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.github.workload_identity_pool_id}/providers/${google_iam_workload_identity_pool_provider.github.workload_identity_pool_provider_id}"
     service_account            = google_service_account.terraform.email
+    deployment_service_account = google_service_account.cloud_deploy_sa.email
     project_id                 = google_project.tenant_app.project_id
   }
 }
