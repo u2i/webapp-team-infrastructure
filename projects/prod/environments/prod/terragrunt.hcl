@@ -14,9 +14,6 @@ terraform {
 inputs = {
   environment = "prod"
   
-  # Resource sizing for production
-  gke_node_count = 5
-  gke_machine_type = "e2-standard-4"
   
   # Features for production
   enable_monitoring = true

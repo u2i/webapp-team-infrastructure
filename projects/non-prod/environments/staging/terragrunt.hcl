@@ -14,9 +14,6 @@ terraform {
 inputs = {
   environment = "staging"
   
-  # Resource sizing for staging
-  gke_node_count = 2
-  gke_machine_type = "e2-standard-2"
   
   # Features for staging
   enable_monitoring = true

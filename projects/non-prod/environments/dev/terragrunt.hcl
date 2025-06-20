@@ -14,9 +14,6 @@ terraform {
 inputs = {
   environment = "dev"
   
-  # Resource sizing for dev
-  gke_node_count = 1
-  gke_machine_type = "e2-medium"
   
   # Features for dev
   enable_monitoring = false

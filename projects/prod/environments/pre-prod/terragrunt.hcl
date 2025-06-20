@@ -14,9 +14,6 @@ terraform {
 inputs = {
   environment = "pre-prod"
   
-  # Resource sizing for pre-prod (similar to prod)
-  gke_node_count = 3
-  gke_machine_type = "e2-standard-4"
   
   # Features for pre-prod
   enable_monitoring = true
