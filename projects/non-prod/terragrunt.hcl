@@ -4,7 +4,7 @@ include "root" {
 }
 
 terraform {
-  source = "git::https://github.com/u2i/u2i-terraform-modules.git//webapp-project?ref=v1.25.0"
+  source = "git::https://github.com/u2i/u2i-terraform-modules.git//webapp-project?ref=v1.32.0"
 }
 
 inputs = {
@@ -15,4 +15,5 @@ inputs = {
   primary_region  = "europe-west1"
   github_org      = "u2i"
   github_repo     = "webapp-team-infrastructure"
+  gke_project_id  = "u2i-tenant-webapp"
 }
