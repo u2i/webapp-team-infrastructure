@@ -36,7 +36,7 @@ metadata:
 spec:
   description: Non-production GKE cluster in shared infrastructure
   gke:
-    cluster: projects/u2i-gke-nonprod/locations/europe-west1/clusters/nonprod-autopilot
+    cluster: projects/u2i-tenant-webapp/locations/europe-west1/clusters/webapp-cluster
   executionConfigs:
   - usages:
     - RENDER
@@ -55,7 +55,7 @@ metadata:
 spec:
   description: Production GKE cluster in shared infrastructure  
   gke:
-    cluster: projects/u2i-gke-prod/locations/europe-west1/clusters/prod-autopilot
+    cluster: projects/u2i-tenant-webapp-prod/locations/europe-west1/clusters/webapp-cluster-prod
   requireApproval: true
   executionConfigs:
   - usages:
